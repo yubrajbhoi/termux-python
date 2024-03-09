@@ -1,3 +1,5 @@
+set -e
+
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS="ac_cv_file__dev_ptmx=yes ac_cv_file__dev_ptc=no ac_cv_func_wcsftime=no"
 # Avoid trying to include <sys/timeb.h> which does not exist on android-21:
 TERMUX_PKG_EXTRA_CONFIGURE_ARGS+=" ac_cv_func_ftime=no"
@@ -27,9 +29,9 @@ export LDFLAGS='-landroid-posix-semaphore -landroid-support -Wl,--as-needed'
 export LIBCRYPT_LIBS='-lcrypt'
 export CPPFLAGS='-D__ANDROID_API__=24 -Wno-implicit-function-declaration'
 export CFLAGS='-Wno-implicit-function-declaration -Wno-int-conversion'
-mkdir target
+mkdir -p target
 
-./configure --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | tee conf.log
+bash ./configure --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | tee conf.log
 make -j6 2>&1 | tee build.log
 make install
 
