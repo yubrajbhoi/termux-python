@@ -43,3 +43,5 @@ rm ./target/bin/python3-config
 
 rm ./target/lib/pkgconfig/python3-embed.pc
 rm ./target/lib/pkgconfig/python3.pc
+
+mv target python-3.12.3
