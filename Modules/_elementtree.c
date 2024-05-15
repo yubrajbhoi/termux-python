@@ -93,6 +93,7 @@ typedef struct {
     PyTypeObject *TreeBuilder_Type;
     PyTypeObject *XMLParser_Type;
 
+    PyObject *expat_capsule;
     struct PyExpat_CAPI *expat_capi;
 } elementtreestate;
 
@@ -150,6 +151,7 @@ elementtree_clear(PyObject *m)
     Py_CLEAR(st->ElementIter_Type);
     Py_CLEAR(st->TreeBuilder_Type);
     Py_CLEAR(st->XMLParser_Type);
+    Py_CLEAR(st->expat_capsule);
 
     st->expat_capi = NULL;
     return 0;
@@ -170,6 +172,7 @@ elementtree_traverse(PyObject *m, visitproc visit, void *arg)
     Py_VISIT(st->ElementIter_Type);
     Py_VISIT(st->TreeBuilder_Type);
     Py_VISIT(st->XMLParser_Type);
+    Py_VISIT(st->expat_capsule);
     return 0;
 }
 
@@ -3065,6 +3068,7 @@ typedef struct {
     PyObject *handle_close;
 
     elementtreestate *state;
+    PyObject *elementtree_module;
 } XMLParserObject;
 
 /* helpers */
@@ -3611,7 +3615,11 @@ xmlparser_new(PyTypeObject *type, PyObject *args, PyObject *kwds)
         self->handle_start = self->handle_data = self->handle_end = NULL;
         self->handle_comment = self->handle_pi = self->handle_close = NULL;
         self->handle_doctype = NULL;
-        self->state = get_elementtree_state_by_type(type);
+        self->elementtree_module = PyType_GetModuleByDef(type, &elementtreemodule);
+        assert(self->elementtree_module != NULL);
+        Py_INCREF(self->elementtree_module);
+        // See gh-111784 for explanation why is reference to module needed here.
+        self->state = get_elementtree_state(self->elementtree_module);
     }
     return (PyObject *)self;
 }
@@ -3788,6 +3796,7 @@ xmlparser_gc_clear(XMLParserObject *self)
         EXPAT(st, ParserFree)(parser);
     }
 
+    Py_CLEAR(self->elementtree_module);
     Py_CLEAR(self->handle_close);
     Py_CLEAR(self->handle_pi);
     Py_CLEAR(self->handle_comment);
@@ -3884,6 +3893,40 @@ _elementtree_XMLParser_close_impl(XMLParserObject *self)
     else {
         return res;
     }
+}
+
+/*[clinic input]
+_elementtree.XMLParser.flush
+
+[clinic start generated code]*/
+
+static PyObject *
+_elementtree_XMLParser_flush_impl(XMLParserObject *self)
+/*[clinic end generated code: output=42fdb8795ca24509 input=effbecdb28715949]*/
+{
+    if (!_check_xmlparser(self)) {
+        return NULL;
+    }
+
+    elementtreestate *st = self->state;
+
+    if (EXPAT(st, SetReparseDeferralEnabled) == NULL) {
+        Py_RETURN_NONE;
+    }
+
+    // NOTE: The Expat parser in the C implementation of ElementTree is not
+    //       exposed to the outside; as a result we known that reparse deferral
+    //       is currently enabled, or we would not even have access to function
+    //       XML_SetReparseDeferralEnabled in the first place (which we checked
+    //       for, a few lines up).
+
+    EXPAT(st, SetReparseDeferralEnabled)(self->parser, XML_FALSE);
+
+    PyObject *res = expat_parse(st, self, "", 0, XML_FALSE);
+
+    EXPAT(st, SetReparseDeferralEnabled)(self->parser, XML_TRUE);
+
+    return res;
 }
 
 /*[clinic input]
@@ -4280,6 +4323,7 @@ static PyType_Spec treebuilder_spec = {
 static PyMethodDef xmlparser_methods[] = {
     _ELEMENTTREE_XMLPARSER_FEED_METHODDEF
     _ELEMENTTREE_XMLPARSER_CLOSE_METHODDEF
+    _ELEMENTTREE_XMLPARSER_FLUSH_METHODDEF
     _ELEMENTTREE_XMLPARSER__PARSE_WHOLE_METHODDEF
     _ELEMENTTREE_XMLPARSER__SETEVENTS_METHODDEF
     {NULL, NULL}
@@ -4347,7 +4391,10 @@ module_exec(PyObject *m)
         goto error;
 
     /* link against pyexpat */
-    st->expat_capi = PyCapsule_Import(PyExpat_CAPSULE_NAME, 0);
+    if (!(st->expat_capsule = _PyImport_GetModuleAttrString("pyexpat", "expat_CAPI")))
+        goto error;
+    if (!(st->expat_capi = PyCapsule_GetPointer(st->expat_capsule, PyExpat_CAPSULE_NAME)))
+        goto error;
     if (st->expat_capi) {
         /* check that it's usable */
         if (strcmp(st->expat_capi->magic, PyExpat_CAPI_MAGIC) != 0 ||

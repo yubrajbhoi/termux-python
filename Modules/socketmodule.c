@@ -6138,74 +6138,17 @@ otherwise any protocol will match.");
    This only returns the protocol number, since the other info is
    already known or not useful (like the list of aliases). */
 
-#ifdef __ANDROID__
-struct protocol_name_and_number {
-    char* name;
-    int number;
-};
-#endif
-
 /*ARGSUSED*/
 static PyObject *
 socket_getprotobyname(PyObject *self, PyObject *args)
 {
-#ifdef __ANDROID__
-    /* http://git.musl-libc.org/cgit/musl/tree/src/network/proto.c */
-    static const struct protocol_name_and_number protocols[] = {
-       {"ip", 0},
-       {"icmp", 1},
-       {"igmp", 2},
-       {"ggp", 3},
-       {"ipencap", 4},
-       {"st", 5},
-       {"tcp", 6},
-       {"egp", 8},
-       {"pup", 12},
-       {"udp", 17},
-       {"hmp", 20},
-       {"xns-idp", 22},
-       {"iso-tp4", 29},
-       {"xtp", 36},
-       {"ddp", 37},
-       {"idpr-cmtp", 38},
-       {"ipv6", 41},
-       {"ipv6-route", 43},
-       {"ipv6-frag", 44},
-       {"idrp", 45},
-       {"rsvp", 46},
-       {"gre", 47},
-       {"esp", 50},
-       {"ah", 51},
-       {"skip", 57},
-       {"ipv6-icmp", 58},
-       {"ipv6-nonxt", 59},
-       {"ipv6-opts", 60},
-       {"rspf", 73},
-       {"vmtp", 81},
-       {"ospf", 89},
-       {"ipip", 94},
-       {"encap", 98},
-       {"pim", 103},
-       {"raw", 255}
-    };
-    int i;
-#endif
     const char *name;
     struct protoent *sp;
     if (!PyArg_ParseTuple(args, "s:getprotobyname", &name))
         return NULL;
-#ifdef __ANDROID__
-    for (i = 0; i < sizeof(protocols) / sizeof(protocols[0]); i++) {
-        if (strcmp(protocols[i].name, name) == 0) {
-            return PyLong_FromLong((long) protocols[i].number);
-        }
-    }
-    sp = NULL;
-#else
     Py_BEGIN_ALLOW_THREADS
     sp = getprotobyname(name);
     Py_END_ALLOW_THREADS
-#endif
     if (sp == NULL) {
         PyErr_SetString(PyExc_OSError, "protocol not found");
         return NULL;
@@ -7142,17 +7085,23 @@ Returns the interface index corresponding to the interface name if_name.");
 static PyObject *
 socket_if_indextoname(PyObject *self, PyObject *arg)
 {
-#ifdef MS_WINDOWS
-    NET_IFINDEX index;
-#else
-    unsigned long index;
-#endif
-    char name[IF_NAMESIZE + 1];
-
-    index = PyLong_AsUnsignedLong(arg);
-    if (index == (unsigned long) -1)
+    unsigned long index_long = PyLong_AsUnsignedLong(arg);
+    if (index_long == (unsigned long) -1 && PyErr_Occurred()) {
         return NULL;
+    }
 
+#ifdef MS_WINDOWS
+    NET_IFINDEX index = (NET_IFINDEX)index_long;
+#else
+    unsigned int index = (unsigned int)index_long;
+#endif
+
+    if ((unsigned long)index != index_long) {
+        PyErr_SetString(PyExc_OverflowError, "index is too large");
+        return NULL;
+    }
+
+    char name[IF_NAMESIZE + 1];
     if (if_indextoname(index, name) == NULL) {
         PyErr_SetFromErrno(PyExc_OSError);
         return NULL;

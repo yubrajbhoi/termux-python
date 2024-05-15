@@ -16,11 +16,13 @@ always available.
    On POSIX systems where Python was built with the standard ``configure``
    script, this contains the ABI flags as specified by :pep:`3149`.
 
+   .. versionadded:: 3.2
+
    .. versionchanged:: 3.8
       Default flags became an empty string (``m`` flag for pymalloc has been
       removed).
 
-   .. versionadded:: 3.2
+   .. availability:: Unix.
 
 
 .. function:: addaudithook(hook)
@@ -1254,10 +1256,13 @@ always available.
     .. versionchanged:: 3.4
 
         :term:`Module specs <module spec>` were introduced in Python 3.4, by
-        :pep:`451`. Earlier versions of Python looked for a method called
-        :meth:`!find_module`.
-        This is still called as a fallback if a :data:`meta_path` entry doesn't
-        have a :meth:`~importlib.abc.MetaPathFinder.find_spec` method.
+        :pep:`451`.
+
+    .. versionchanged:: 3.12
+
+        Removed the fallback that looked for a :meth:`!find_module` method
+        if a :data:`meta_path` entry didn't have a
+        :meth:`~importlib.abc.MetaPathFinder.find_spec` method.
 
 .. data:: modules
 
@@ -1276,7 +1281,10 @@ always available.
    The list of the original command line arguments passed to the Python
    executable.
 
-   See also :data:`sys.argv`.
+   The elements of :data:`sys.orig_argv` are the arguments to the Python interpreter,
+   while the elements of :data:`sys.argv` are the arguments to the user's program.
+   Arguments consumed by the interpreter itself will be present in :data:`sys.orig_argv`
+   and missing from :data:`sys.argv`.
 
    .. versionadded:: 3.10
 
@@ -1638,7 +1646,13 @@ always available.
       ``'opcode'`` event type added; :attr:`~frame.f_trace_lines` and
       :attr:`~frame.f_trace_opcodes` attributes added to frames
 
-.. function:: set_asyncgen_hooks(firstiter, finalizer)
+   .. versionchanged:: 3.12
+      ``'opcode'`` event will only be emitted if :attr:`~frame.f_trace_opcodes`
+      of at least one frame has been set to :const:`True` before :func:`settrace`
+      is called. This behavior will be changed back in 3.13 to be consistent with
+      previous versions.
+
+.. function:: set_asyncgen_hooks([firstiter] [, finalizer])
 
    Accepts two optional keyword arguments which are callables that accept an
    :term:`asynchronous generator iterator` as an argument. The *firstiter*

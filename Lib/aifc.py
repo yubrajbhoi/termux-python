@@ -961,7 +961,7 @@ def open(f, mode=None):
 if __name__ == '__main__':
     import sys
     if not sys.argv[1:]:
-        sys.argv.append('/data/data/com.termux/files/usr/demos/data/audio/bach.aiff')
+        sys.argv.append('/usr/demos/data/audio/bach.aiff')
     fn = sys.argv[1]
     with open(fn, 'r') as f:
         print("Reading", fn)

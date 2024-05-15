@@ -126,7 +126,7 @@ static const char PyCursesVersion[] = "2.2";
 #undef columns
 #endif
 
-#if defined(HAVE_LANGINFO_H) && !defined(__ANDROID__)
+#ifdef HAVE_LANGINFO_H
 #include <langinfo.h>
 #endif
 
