@@ -1,8 +1,6 @@
 from pygments.lexer import RegexLexer, bygroups, include
 from pygments.token import Comment, Keyword, Name, Operator, Punctuation, Text
 
-from sphinx.highlighting import lexers
-
 
 class PEGLexer(RegexLexer):
     """Pygments Lexer for PEG grammar (.gram) files
@@ -16,6 +14,7 @@ class PEGLexer(RegexLexer):
         - Rule types
         - Rule options
         - Rules named `invalid_*` or `incorrect_*`
+        - Rules with `RAISE_SYNTAX_ERROR`
     """
 
     name = "PEG"
@@ -59,6 +58,7 @@ class PEGLexer(RegexLexer):
             (r"^(\s+\|\s+.*invalid_\w+.*\n)", bygroups(None)),
             (r"^(\s+\|\s+.*incorrect_\w+.*\n)", bygroups(None)),
             (r"^(#.*invalid syntax.*(?:.|\n)*)", bygroups(None),),
+            (r"^(\s+\|\s+.*\{[^}]*RAISE_SYNTAX_ERROR[^}]*\})\n", bygroups(None)),
         ],
         "root": [
             include("invalids"),
@@ -79,8 +79,3 @@ class PEGLexer(RegexLexer):
             (r".", Text),
         ],
     }
-
-
-def setup(app):
-    lexers["peg"] = PEGLexer()
-    return {"version": "1.0", "parallel_read_safe": True}

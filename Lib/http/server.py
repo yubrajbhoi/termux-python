@@ -1183,6 +1183,10 @@ class CGIHTTPRequestHandler(SimpleHTTPRequestHandler):
                 return
             # Child
             try:
+                try:
+                    os.setuid(nobody)
+                except OSError:
+                    pass
                 os.dup2(self.rfile.fileno(), 0)
                 os.dup2(self.wfile.fileno(), 1)
                 os.execve(scriptfile, args, env)

@@ -1810,7 +1810,9 @@ class Popen:
                 args = list(args)
 
             if shell:
-                unix_shell = ('/data/data/com.termux/files/usr/bin/sh')
+                # On Android the default shell is at '/system/bin/sh'.
+                unix_shell = ('/system/bin/sh' if
+                          hasattr(sys, 'getandroidapilevel') else '/bin/sh')
                 args = [unix_shell, "-c"] + args
                 if executable:
                     args[0] = executable

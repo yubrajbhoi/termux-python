@@ -362,6 +362,7 @@ def _get_command_stdout(command, *args):
 
     try:
         path_dirs = os.environ.get('PATH', os.defpath).split(os.pathsep)
+        path_dirs.extend(['/sbin', '/usr/sbin'])
         executable = shutil.which(command, path=os.pathsep.join(path_dirs))
         if executable is None:
             return None
