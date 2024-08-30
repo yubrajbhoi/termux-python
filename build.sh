@@ -28,7 +28,7 @@ export CXX=clang++
 export LDFLAGS='-landroid-posix-semaphore -landroid-support -Wl,--as-needed'
 export LIBCRYPT_LIBS='-lcrypt'
 export CPPFLAGS='-D__ANDROID_API__=24 -Wno-implicit-function-declaration'
-export CFLAGS='-Wno-implicit-function-declaration -Wno-int-conversion'
+export CFLAGS='-D__ANDROID_API__=24 -Wno-implicit-function-declaration -Wno-int-conversion'
 mkdir -p target
 
 bash ./configure --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | tee conf.log
@@ -44,4 +44,4 @@ rm ./target/bin/python3-config
 rm ./target/lib/pkgconfig/python3-embed.pc
 rm ./target/lib/pkgconfig/python3.pc
 
-mv target python-3.12.3
+mv target python-3.12.5
