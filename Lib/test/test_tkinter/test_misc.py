@@ -1,9 +1,10 @@
 import functools
 import unittest
 import tkinter
+from tkinter import TclError
 import enum
 from test import support
-from test.test_tkinter.support import AbstractTkTest, AbstractDefaultRootTest
+from test.test_tkinter.support import AbstractTkTest, AbstractDefaultRootTest, requires_tk
 
 support.requires('gui')
 
@@ -35,6 +36,59 @@ class MiscTest(AbstractTkTest, unittest.TestCase):
         b = tkinter.Button(f2)
         for name in str(b).split('.'):
             self.assertFalse(name.isidentifier(), msg=repr(name))
+
+    @requires_tk(8, 6, 6)
+    def test_tk_busy(self):
+        root = self.root
+        f = tkinter.Frame(root, name='myframe')
+        f2 = tkinter.Frame(root)
+        f.pack()
+        f2.pack()
+        b = tkinter.Button(f)
+        b.pack()
+        f.tk_busy_hold()
+        with self.assertRaisesRegex(TclError, 'unknown option "-spam"'):
+            f.tk_busy_configure(spam='eggs')
+        with self.assertRaisesRegex(TclError, 'unknown option "-spam"'):
+            f.tk_busy_cget('spam')
+        with self.assertRaisesRegex(TclError, 'unknown option "-spam"'):
+            f.tk_busy_configure('spam')
+        self.assertIsInstance(f.tk_busy_configure(), dict)
+
+        self.assertTrue(f.tk_busy_status())
+        self.assertFalse(root.tk_busy_status())
+        self.assertFalse(f2.tk_busy_status())
+        self.assertFalse(b.tk_busy_status())
+        self.assertIn(f, f.tk_busy_current())
+        self.assertIn(f, f.tk_busy_current('*.m?f*me'))
+        self.assertNotIn(f, f.tk_busy_current('*spam'))
+
+        f.tk_busy_forget()
+        self.assertFalse(f.tk_busy_status())
+        self.assertFalse(f.tk_busy_current())
+        with self.assertRaisesRegex(TclError, "can't find busy window"):
+            f.tk_busy_configure()
+        with self.assertRaisesRegex(TclError, "can't find busy window"):
+            f.tk_busy_forget()
+
+    @requires_tk(8, 6, 6)
+    def test_tk_busy_with_cursor(self):
+        root = self.root
+        if root._windowingsystem == 'aqua':
+            self.skipTest('the cursor option is not supported on OSX/Aqua')
+        f = tkinter.Frame(root, name='myframe')
+        f.pack()
+        f.tk_busy_hold(cursor='gumby')
+
+        self.assertEqual(f.tk_busy_cget('cursor'), 'gumby')
+        f.tk_busy_configure(cursor='heart')
+        self.assertEqual(f.tk_busy_cget('cursor'), 'heart')
+        self.assertEqual(f.tk_busy_configure()['cursor'][4], 'heart')
+        self.assertEqual(f.tk_busy_configure('cursor')[4], 'heart')
+
+        f.tk_busy_forget()
+        with self.assertRaisesRegex(TclError, "can't find busy window"):
+            f.tk_busy_cget('cursor')
 
     def test_tk_setPalette(self):
         root = self.root
@@ -177,6 +231,46 @@ class MiscTest(AbstractTkTest, unittest.TestCase):
         self.assertEqual(count, 1)
         with self.assertRaises(tkinter.TclError):
             root.tk.call('after', 'info', idle1)
+
+    def test_after_info(self):
+        root = self.root
+
+        # No events.
+        self.assertEqual(root.after_info(), ())
+
+        # Add timer.
+        timer = root.after(1, lambda: 'break')
+
+        # With no parameter, it returns a tuple of the event handler ids.
+        self.assertEqual(root.after_info(), (timer, ))
+        root.after_cancel(timer)
+
+        timer1 = root.after(5000, lambda: 'break')
+        timer2 = root.after(5000, lambda: 'break')
+        idle1 = root.after_idle(lambda: 'break')
+        # Only contains new events and not 'timer'.
+        self.assertEqual(root.after_info(), (idle1, timer2, timer1))
+
+        # With a parameter returns a tuple of (script, type).
+        timer1_info = root.after_info(timer1)
+        self.assertEqual(len(timer1_info), 2)
+        self.assertEqual(timer1_info[1], 'timer')
+        idle1_info = root.after_info(idle1)
+        self.assertEqual(len(idle1_info), 2)
+        self.assertEqual(idle1_info[1], 'idle')
+
+        root.after_cancel(timer1)
+        with self.assertRaises(tkinter.TclError):
+            root.after_info(timer1)
+        root.after_cancel(timer2)
+        with self.assertRaises(tkinter.TclError):
+            root.after_info(timer2)
+        root.after_cancel(idle1)
+        with self.assertRaises(tkinter.TclError):
+            root.after_info(idle1)
+
+        # No events.
+        self.assertEqual(root.after_info(), ())
 
     def test_clipboard(self):
         root = self.root
@@ -390,6 +484,61 @@ class MiscTest(AbstractTkTest, unittest.TestCase):
         widget.insert(0, '\u20ac\0')  # non-ASCII
         widget.selection_range(0, 'end')
         self.assertEqual(widget.selection_get(), '\u20ac\0abc\x00def')
+
+
+class WmTest(AbstractTkTest, unittest.TestCase):
+
+    def test_wm_attribute(self):
+        w = self.root
+        attributes = w.wm_attributes(return_python_dict=True)
+        self.assertIsInstance(attributes, dict)
+        attributes2 = w.wm_attributes()
+        self.assertIsInstance(attributes2, tuple)
+        self.assertEqual(attributes2[::2],
+                         tuple('-' + k for k in attributes))
+        self.assertEqual(attributes2[1::2], tuple(attributes.values()))
+        # silently deprecated
+        attributes3 = w.wm_attributes(None)
+        if self.wantobjects:
+            self.assertEqual(attributes3, attributes2)
+        else:
+            self.assertIsInstance(attributes3, str)
+
+        for name in attributes:
+            self.assertEqual(w.wm_attributes(name), attributes[name])
+        # silently deprecated
+        for name in attributes:
+            self.assertEqual(w.wm_attributes('-' + name), attributes[name])
+
+        self.assertIn('alpha', attributes)
+        self.assertIn('fullscreen', attributes)
+        self.assertIn('topmost', attributes)
+        if w._windowingsystem == "win32":
+            self.assertIn('disabled', attributes)
+            self.assertIn('toolwindow', attributes)
+            self.assertIn('transparentcolor', attributes)
+        if w._windowingsystem == "aqua":
+            self.assertIn('modified', attributes)
+            self.assertIn('notify', attributes)
+            self.assertIn('titlepath', attributes)
+            self.assertIn('transparent', attributes)
+        if w._windowingsystem == "x11":
+            self.assertIn('type', attributes)
+            self.assertIn('zoomed', attributes)
+
+        w.wm_attributes(alpha=0.5)
+        self.assertEqual(w.wm_attributes('alpha'),
+                         0.5 if self.wantobjects else '0.5')
+        w.wm_attributes(alpha=1.0)
+        self.assertEqual(w.wm_attributes('alpha'),
+                         1.0 if self.wantobjects else '1.0')
+        # silently deprecated
+        w.wm_attributes('-alpha', 0.5)
+        self.assertEqual(w.wm_attributes('alpha'),
+                         0.5 if self.wantobjects else '0.5')
+        w.wm_attributes(alpha=1.0)
+        self.assertEqual(w.wm_attributes('alpha'),
+                         1.0 if self.wantobjects else '1.0')
 
 
 class EventTest(AbstractTkTest, unittest.TestCase):

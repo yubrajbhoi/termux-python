@@ -1,13 +1,14 @@
-#define PY_SSIZE_T_CLEAN
 #include "Python.h"
-#include "pycore_call.h"          // _PyObject_CallNoArgs()
-#include "pycore_long.h"          // _PyLong_GetZero()
-#include "pycore_moduleobject.h"  // _PyModule_GetState()
-#include "pycore_typeobject.h"    // _PyType_GetModuleState()
-#include "pycore_object.h"        // _PyObject_GC_TRACK()
-#include "pycore_tuple.h"         // _PyTuple_ITEMS()
-#include "structmember.h"         // PyMemberDef
-#include <stddef.h>               // offsetof()
+#include "pycore_call.h"              // _PyObject_CallNoArgs()
+#include "pycore_ceval.h"             // _PyEval_GetBuiltin()
+#include "pycore_critical_section.h"  // Py_BEGIN_CRITICAL_SECTION()
+#include "pycore_long.h"              // _PyLong_GetZero()
+#include "pycore_moduleobject.h"      // _PyModule_GetState()
+#include "pycore_typeobject.h"        // _PyType_GetModuleState()
+#include "pycore_object.h"            // _PyObject_GC_TRACK()
+#include "pycore_tuple.h"             // _PyTuple_ITEMS()
+
+#include <stddef.h>                   // offsetof()
 
 /* Itertools module written and maintained
    by Raymond D. Hettinger <python@rcn.com>
@@ -105,20 +106,11 @@ class itertools.pairwise "pairwiseobject *" "clinic_state()->pairwise_type"
 
 /* batched object ************************************************************/
 
-/* Note:  The built-in zip() function includes a "strict" argument
-   that was needed because that function would silently truncate data,
-   and there was no easy way for a user to detect the data loss.
-   The same reasoning does not apply to batched() which never drops data.
-   Instead, batched() produces a shorter tuple which can be handled
-   as the user sees fit.  If requested, it would be reasonable to add
-   "fillvalue" support which had demonstrated value in zip_longest().
-   For now, the API is kept simple and clean.
- */
-
 typedef struct {
     PyObject_HEAD
     PyObject *it;
     Py_ssize_t batch_size;
+    bool strict;
 } batchedobject;
 
 /*[clinic input]
@@ -126,6 +118,9 @@ typedef struct {
 itertools.batched.__new__ as batched_new
     iterable: object
     n: Py_ssize_t
+    *
+    strict: bool = False
+
 Batch data into tuples of length n. The last batch may be shorter than n.
 
 Loops over the input iterable and accumulates data into tuples
@@ -140,11 +135,15 @@ or when the input iterable is exhausted.
     ('D', 'E', 'F')
     ('G',)
 
+If "strict" is True, raises a ValueError if the final batch is shorter
+than n.
+
 [clinic start generated code]*/
 
 static PyObject *
-batched_new_impl(PyTypeObject *type, PyObject *iterable, Py_ssize_t n)
-/*[clinic end generated code: output=7ebc954d655371b6 input=ffd70726927c5129]*/
+batched_new_impl(PyTypeObject *type, PyObject *iterable, Py_ssize_t n,
+                 int strict)
+/*[clinic end generated code: output=c6de11b061529d3e input=7814b47e222f5467]*/
 {
     PyObject *it;
     batchedobject *bo;
@@ -170,6 +169,7 @@ batched_new_impl(PyTypeObject *type, PyObject *iterable, Py_ssize_t n)
     }
     bo->batch_size = n;
     bo->it = it;
+    bo->strict = (bool) strict;
     return (PyObject *)bo;
 }
 
@@ -233,6 +233,12 @@ batched_next(batchedobject *bo)
         Py_DECREF(result);
         return NULL;
     }
+    if (bo->strict) {
+        Py_CLEAR(bo->it);
+        Py_DECREF(result);
+        PyErr_SetString(PyExc_ValueError, "batched(): incomplete batch");
+        return NULL;
+    }
     _PyTuple_Resize(&result, i);
     return result;
 }
@@ -265,6 +271,7 @@ typedef struct {
     PyObject_HEAD
     PyObject *it;
     PyObject *old;
+    PyObject *result;
 } pairwiseobject;
 
 /*[clinic input]
@@ -296,6 +303,11 @@ pairwise_new_impl(PyTypeObject *type, PyObject *iterable)
     }
     po->it = it;
     po->old = NULL;
+    po->result = PyTuple_Pack(2, Py_None, Py_None);
+    if (po->result == NULL) {
+        Py_DECREF(po);
+        return NULL;
+    }
     return (PyObject *)po;
 }
 
@@ -306,6 +318,7 @@ pairwise_dealloc(pairwiseobject *po)
     PyObject_GC_UnTrack(po);
     Py_XDECREF(po->it);
     Py_XDECREF(po->old);
+    Py_XDECREF(po->result);
     tp->tp_free(po);
     Py_DECREF(tp);
 }
@@ -316,6 +329,7 @@ pairwise_traverse(pairwiseobject *po, visitproc visit, void *arg)
     Py_VISIT(Py_TYPE(po));
     Py_VISIT(po->it);
     Py_VISIT(po->old);
+    Py_VISIT(po->result);
     return 0;
 }
 
@@ -350,8 +364,30 @@ pairwise_next(pairwiseobject *po)
         Py_DECREF(old);
         return NULL;
     }
-    /* Future optimization: Reuse the result tuple as we do in enumerate() */
-    result = PyTuple_Pack(2, old, new);
+
+    result = po->result;
+    if (Py_REFCNT(result) == 1) {
+        Py_INCREF(result);
+        PyObject *last_old = PyTuple_GET_ITEM(result, 0);
+        PyObject *last_new = PyTuple_GET_ITEM(result, 1);
+        PyTuple_SET_ITEM(result, 0, Py_NewRef(old));
+        PyTuple_SET_ITEM(result, 1, Py_NewRef(new));
+        Py_DECREF(last_old);
+        Py_DECREF(last_new);
+        // bpo-42536: The GC may have untracked this result tuple. Since we're
+        // recycling it, make sure it's tracked again:
+        if (!_PyObject_GC_IS_TRACKED(result)) {
+            _PyObject_GC_TRACK(result);
+        }
+    }
+    else {
+        result = PyTuple_New(2);
+        if (result != NULL) {
+            PyTuple_SET_ITEM(result, 0, Py_NewRef(old));
+            PyTuple_SET_ITEM(result, 1, Py_NewRef(new));
+        }
+    }
+
     Py_XSETREF(po->old, new);
     Py_DECREF(old);
     return result;
@@ -1098,7 +1134,7 @@ static PyMethodDef tee_methods[] = {
 };
 
 static PyMemberDef tee_members[] = {
-    {"__weaklistoffset__", T_PYSSIZET, offsetof(teeobject, weakreflist), READONLY},
+    {"__weaklistoffset__", Py_T_PYSSIZET, offsetof(teeobject, weakreflist), Py_READONLY},
     {NULL},
 };
 
@@ -1137,7 +1173,7 @@ itertools_tee_impl(PyObject *module, PyObject *iterable, Py_ssize_t n)
 /*[clinic end generated code: output=1c64519cd859c2f0 input=c99a1472c425d66d]*/
 {
     Py_ssize_t i;
-    PyObject *it, *copyable, *copyfunc, *result;
+    PyObject *it, *to, *result;
 
     if (n < 0) {
         PyErr_SetString(PyExc_ValueError, "n must be >= 0");
@@ -1154,41 +1190,24 @@ itertools_tee_impl(PyObject *module, PyObject *iterable, Py_ssize_t n)
         return NULL;
     }
 
-    if (_PyObject_LookupAttr(it, &_Py_ID(__copy__), &copyfunc) < 0) {
-        Py_DECREF(it);
+    (void)&_Py_ID(__copy__); // Retain a reference to __copy__
+    itertools_state *state = get_module_state(module);
+    to = tee_fromiterable(state, it);
+    Py_DECREF(it);
+    if (to == NULL) {
         Py_DECREF(result);
         return NULL;
     }
-    if (copyfunc != NULL) {
-        copyable = it;
-    }
-    else {
-        itertools_state *state = get_module_state(module);
-        copyable = tee_fromiterable(state, it);
-        Py_DECREF(it);
-        if (copyable == NULL) {
-            Py_DECREF(result);
-            return NULL;
-        }
-        copyfunc = PyObject_GetAttr(copyable, &_Py_ID(__copy__));
-        if (copyfunc == NULL) {
-            Py_DECREF(copyable);
-            Py_DECREF(result);
-            return NULL;
-        }
-    }
 
-    PyTuple_SET_ITEM(result, 0, copyable);
+    PyTuple_SET_ITEM(result, 0, to);
     for (i = 1; i < n; i++) {
-        copyable = _PyObject_CallNoArgs(copyfunc);
-        if (copyable == NULL) {
-            Py_DECREF(copyfunc);
+        to = tee_copy((teeobject *)to, NULL);
+        if (to == NULL) {
             Py_DECREF(result);
             return NULL;
         }
-        PyTuple_SET_ITEM(result, i, copyable);
+        PyTuple_SET_ITEM(result, i, to);
     }
-    Py_DECREF(copyfunc);
     return result;
 }
 
@@ -2184,7 +2203,8 @@ chain_setstate(chainobject *lz, PyObject *state)
 }
 
 PyDoc_STRVAR(chain_doc,
-"chain(*iterables) --> chain object\n\
+"chain(*iterables)\n\
+--\n\
 \n\
 Return a chain object whose .__next__() method returns elements from the\n\
 first iterable until it is exhausted, then elements from the next\n\
@@ -2523,7 +2543,8 @@ static PyMethodDef product_methods[] = {
 };
 
 PyDoc_STRVAR(product_doc,
-"product(*iterables, repeat=1) --> product object\n\
+"product(*iterables, repeat=1)\n\
+--\n\
 \n\
 Cartesian product of input iterables.  Equivalent to nested for-loops.\n\n\
 For example, product(A, B) returns the same as:  ((x,y) for x in A for y in B).\n\
@@ -3998,9 +4019,9 @@ typedef struct {
 
 fast_mode:  when cnt an integer < PY_SSIZE_T_MAX and no step is specified.
 
-    assert(cnt != PY_SSIZE_T_MAX && long_cnt == NULL && long_step==PyLong(1));
+    assert(long_cnt == NULL && long_step==PyLong(1));
     Advances with:  cnt += 1
-    When count hits Y_SSIZE_T_MAX, switch to slow_mode.
+    When count hits PY_SSIZE_T_MAX, switch to slow_mode.
 
 slow_mode:  when cnt == PY_SSIZE_T_MAX, step is not int(1), or cnt is a float.
 
@@ -4085,7 +4106,7 @@ itertools_count_impl(PyTypeObject *type, PyObject *long_cnt,
     else
         cnt = PY_SSIZE_T_MAX;
 
-    assert((cnt != PY_SSIZE_T_MAX && long_cnt == NULL && fast_mode) ||
+    assert((long_cnt == NULL && fast_mode) ||
            (cnt == PY_SSIZE_T_MAX && long_cnt != NULL && !fast_mode));
     assert(!fast_mode ||
            (PyLong_Check(long_step) && PyLong_AS_LONG(long_step) == 1));
@@ -4149,15 +4170,36 @@ count_nextlong(countobject *lz)
 static PyObject *
 count_next(countobject *lz)
 {
+#ifndef Py_GIL_DISABLED
     if (lz->cnt == PY_SSIZE_T_MAX)
         return count_nextlong(lz);
     return PyLong_FromSsize_t(lz->cnt++);
+#else
+    // free-threading version
+    // fast mode uses compare-exchange loop
+    // slow mode uses a critical section
+    PyObject *returned;
+    Py_ssize_t cnt;
+
+    cnt = _Py_atomic_load_ssize_relaxed(&lz->cnt);
+    for (;;) {
+        if (cnt == PY_SSIZE_T_MAX) {
+            Py_BEGIN_CRITICAL_SECTION(lz);
+            returned = count_nextlong(lz);
+            Py_END_CRITICAL_SECTION();
+            return returned;
+        }
+        if (_Py_atomic_compare_exchange_ssize(&lz->cnt, &cnt, cnt + 1)) {
+            return PyLong_FromSsize_t(cnt);
+        }
+    }
+#endif
 }
 
 static PyObject *
 count_repr(countobject *lz)
 {
-    if (lz->cnt != PY_SSIZE_T_MAX)
+    if (lz->long_cnt == NULL)
         return PyUnicode_FromFormat("%s(%zd)",
                                     _PyType_Name(Py_TYPE(lz)), lz->cnt);
 
@@ -4568,7 +4610,8 @@ static PyMethodDef zip_longest_methods[] = {
 };
 
 PyDoc_STRVAR(zip_longest_doc,
-"zip_longest(iter1 [,iter2 [...]], [fillvalue=None]) --> zip_longest object\n\
+"zip_longest(*iterables, fillvalue=None)\n\
+--\n\
 \n\
 Return a zip_longest object whose .__next__() method returns a tuple where\n\
 the i-th element comes from the i-th iterable argument.  The .__next__()\n\
@@ -4743,6 +4786,7 @@ itertoolsmodule_exec(PyObject *mod)
 static struct PyModuleDef_Slot itertoolsmodule_slots[] = {
     {Py_mod_exec, itertoolsmodule_exec},
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_gil, Py_MOD_GIL_NOT_USED},
     {0, NULL}
 };
 

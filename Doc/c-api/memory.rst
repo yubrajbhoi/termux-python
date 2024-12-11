@@ -102,30 +102,38 @@ All allocating functions belong to one of three different "domains" (see also
 strategies and are optimized for different purposes. The specific details on
 how every domain allocates memory or what internal functions each domain calls
 is considered an implementation detail, but for debugging purposes a simplified
-table can be found at :ref:`here <default-memory-allocators>`. There is no hard
-requirement to use the memory returned by the allocation functions belonging to
-a given domain for only the purposes hinted by that domain (although this is the
-recommended practice). For example, one could use the memory returned by
-:c:func:`PyMem_RawMalloc` for allocating Python objects or the memory returned
-by :c:func:`PyObject_Malloc` for allocating memory for buffers.
+table can be found at :ref:`here <default-memory-allocators>`.
+The APIs used to allocate and free a block of memory must be from the same domain.
+For example, :c:func:`PyMem_Free` must be used to free memory allocated using :c:func:`PyMem_Malloc`.
 
 The three allocation domains are:
 
 * Raw domain: intended for allocating memory for general-purpose memory
   buffers where the allocation *must* go to the system allocator or where the
   allocator can operate without the :term:`GIL`. The memory is requested directly
-  to the system.
+  from the system. See :ref:`Raw Memory Interface <raw-memoryinterface>`.
 
 * "Mem" domain: intended for allocating memory for Python buffers and
   general-purpose memory buffers where the allocation must be performed with
   the :term:`GIL` held. The memory is taken from the Python private heap.
+  See :ref:`Memory Interface <memoryinterface>`.
 
-* Object domain: intended for allocating memory belonging to Python objects. The
-  memory is taken from the Python private heap.
+* Object domain: intended for allocating memory for Python objects. The
+  memory is taken from the Python private heap. See :ref:`Object allocators <objectinterface>`.
 
-When freeing memory previously allocated by the allocating functions belonging to a
-given domain,the matching specific deallocating functions must be used. For example,
-:c:func:`PyMem_Free` must be used to free memory allocated using :c:func:`PyMem_Malloc`.
+.. note::
+
+  The :term:`free-threaded <free threading>` build requires that only Python objects are allocated using the "object" domain
+  and that all Python objects are allocated using that domain. This differs from the prior Python versions,
+  where this was only a best practice and not a hard requirement.
+
+  For example, buffers (non-Python objects) should be allocated using :c:func:`PyMem_Malloc`,
+  :c:func:`PyMem_RawMalloc`, or :c:func:`malloc`, but not :c:func:`PyObject_Malloc`.
+
+  See :ref:`Memory Allocation APIs <free-threaded-memory-allocation>`.
+
+
+.. _raw-memoryinterface:
 
 Raw Memory Interface
 ====================
@@ -299,6 +307,8 @@ versions and is therefore deprecated in extension modules.
 * ``PyMem_DEL(ptr)``
 
 
+.. _objectinterface:
+
 Object allocators
 =================
 
@@ -391,6 +401,8 @@ Legend:
 * ``malloc``: system allocators from the standard C library, C functions:
   :c:func:`malloc`, :c:func:`calloc`, :c:func:`realloc` and :c:func:`free`.
 * ``pymalloc``: :ref:`pymalloc memory allocator <pymalloc>`.
+* ``mimalloc``: :ref:`mimalloc memory allocator <mimalloc>`.  The pymalloc
+  allocator will be used if mimalloc support isn't available.
 * "+ debug": with :ref:`debug hooks on the Python memory allocators
   <pymem-debug-hooks>`.
 * "Debug build": :ref:`Python build in debug mode <debug-build>`.
@@ -672,6 +684,16 @@ Customize pymalloc Arena Allocator
 
    Set the arena allocator.
 
+.. _mimalloc:
+
+The mimalloc allocator
+======================
+
+.. versionadded:: 3.13
+
+Python supports the mimalloc allocator when the underlying platform support is available.
+mimalloc "is a general purpose allocator with excellent performance characteristics.
+Initially developed by Daan Leijen for the runtime systems of the Koka and Lean languages."
 
 tracemalloc C API
 =================

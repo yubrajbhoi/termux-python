@@ -12,6 +12,7 @@ from test.support.import_helper import import_module
 from test.support.os_helper import unlink, temp_dir, TESTFN
 from test.support.pty_helper import run_pty
 from test.support.script_helper import assert_python_ok
+from test.support.threading_helper import requires_working_threading
 
 # Skip tests if there is no readline module
 readline = import_module('readline')
@@ -19,7 +20,7 @@ readline = import_module('readline')
 if hasattr(readline, "_READLINE_LIBRARY_VERSION"):
     is_editline = ("EditLine wrapper" in readline._READLINE_LIBRARY_VERSION)
 else:
-    is_editline = (readline.__doc__ and "libedit" in readline.__doc__)
+    is_editline = readline.backend == "editline"
 
 
 def setUpModule():
@@ -171,6 +172,9 @@ class TestReadline(unittest.TestCase):
                                               TERM='xterm-256color')
         self.assertEqual(stdout, b'')
 
+    def test_backend(self):
+        self.assertIn(readline.backend, ("readline", "editline"))
+
     auto_history_script = """\
 import readline
 readline.set_auto_history({})
@@ -197,7 +201,7 @@ print("History length:", readline.get_current_history_length())
                 if state == 0 and text == "$":
                     return "$complete"
                 return None
-            if "libedit" in getattr(readline, "__doc__", ""):
+            if readline.backend == "editline":
                 readline.parse_and_bind(r'bind "\\t" rl_complete')
             else:
                 readline.parse_and_bind(r'"\\t": complete')
@@ -224,7 +228,7 @@ print("History length:", readline.get_current_history_length())
 
         script = r"""import readline
 
-is_editline = readline.__doc__ and "libedit" in readline.__doc__
+is_editline = readline.backend == "editline"
 inserted = "[\xEFnserted]"
 macro = "|t\xEB[after]"
 set_pre_input_hook = getattr(readline, "set_pre_input_hook", None)
@@ -345,6 +349,30 @@ readline.write_history_file(history_file)
                 lines = f.readlines()
             self.assertEqual(len(lines), history_size)
             self.assertEqual(lines[-1].strip(), b"last input")
+
+    @requires_working_threading()
+    def test_gh123321_threadsafe(self):
+        """gh-123321: readline should be thread-safe and not crash"""
+        script = textwrap.dedent(r"""
+            import threading
+            from test.support.threading_helper import join_thread
+
+            def func():
+                input()
+
+            thread1 = threading.Thread(target=func)
+            thread2 = threading.Thread(target=func)
+            thread1.start()
+            thread2.start()
+            join_thread(thread1)
+            join_thread(thread2)
+            print("done")
+        """)
+
+        output = run_pty(script, input=b"input1\rinput2\r")
+
+        self.assertIn(b"done", output)
+
 
     def test_write_read_limited_history(self):
         previous_length = readline.get_history_length()

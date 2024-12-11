@@ -3,10 +3,11 @@ preserve
 [clinic start generated code]*/
 
 #if defined(Py_BUILD_CORE) && !defined(Py_BUILD_CORE_MODULE)
-#  include "pycore_gc.h"            // PyGC_Head
-#  include "pycore_runtime.h"       // _Py_ID()
+#  include "pycore_gc.h"          // PyGC_Head
+#  include "pycore_runtime.h"     // _Py_ID()
 #endif
-
+#include "pycore_abstract.h"      // _PyNumber_Index()
+#include "pycore_modsupport.h"    // _PyArg_UnpackKeywords()
 
 PyDoc_STRVAR(_sre_getcodesize__doc__,
 "getcodesize($module, /)\n"
@@ -53,7 +54,7 @@ _sre_ascii_iscased(PyObject *module, PyObject *arg)
     int character;
     int _return_value;
 
-    character = _PyLong_AsInt(arg);
+    character = PyLong_AsInt(arg);
     if (character == -1 && PyErr_Occurred()) {
         goto exit;
     }
@@ -85,7 +86,7 @@ _sre_unicode_iscased(PyObject *module, PyObject *arg)
     int character;
     int _return_value;
 
-    character = _PyLong_AsInt(arg);
+    character = PyLong_AsInt(arg);
     if (character == -1 && PyErr_Occurred()) {
         goto exit;
     }
@@ -117,7 +118,7 @@ _sre_ascii_tolower(PyObject *module, PyObject *arg)
     int character;
     int _return_value;
 
-    character = _PyLong_AsInt(arg);
+    character = PyLong_AsInt(arg);
     if (character == -1 && PyErr_Occurred()) {
         goto exit;
     }
@@ -149,7 +150,7 @@ _sre_unicode_tolower(PyObject *module, PyObject *arg)
     int character;
     int _return_value;
 
-    character = _PyLong_AsInt(arg);
+    character = PyLong_AsInt(arg);
     if (character == -1 && PyErr_Occurred()) {
         goto exit;
     }
@@ -975,6 +976,44 @@ PyDoc_STRVAR(_sre_SRE_Pattern___deepcopy____doc__,
 #define _SRE_SRE_PATTERN___DEEPCOPY___METHODDEF    \
     {"__deepcopy__", (PyCFunction)_sre_SRE_Pattern___deepcopy__, METH_O, _sre_SRE_Pattern___deepcopy____doc__},
 
+#if defined(Py_DEBUG)
+
+PyDoc_STRVAR(_sre_SRE_Pattern__fail_after__doc__,
+"_fail_after($self, count, exception, /)\n"
+"--\n"
+"\n"
+"For debugging.");
+
+#define _SRE_SRE_PATTERN__FAIL_AFTER_METHODDEF    \
+    {"_fail_after", _PyCFunction_CAST(_sre_SRE_Pattern__fail_after), METH_FASTCALL, _sre_SRE_Pattern__fail_after__doc__},
+
+static PyObject *
+_sre_SRE_Pattern__fail_after_impl(PatternObject *self, int count,
+                                  PyObject *exception);
+
+static PyObject *
+_sre_SRE_Pattern__fail_after(PatternObject *self, PyObject *const *args, Py_ssize_t nargs)
+{
+    PyObject *return_value = NULL;
+    int count;
+    PyObject *exception;
+
+    if (!_PyArg_CheckPositional("_fail_after", nargs, 2, 2)) {
+        goto exit;
+    }
+    count = PyLong_AsInt(args[0]);
+    if (count == -1 && PyErr_Occurred()) {
+        goto exit;
+    }
+    exception = args[1];
+    return_value = _sre_SRE_Pattern__fail_after_impl(self, count, exception);
+
+exit:
+    return return_value;
+}
+
+#endif /* defined(Py_DEBUG) */
+
 PyDoc_STRVAR(_sre_compile__doc__,
 "compile($module, /, pattern, flags, code, groups, groupindex,\n"
 "        indexgroup)\n"
@@ -1031,7 +1070,7 @@ _sre_compile(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject
         goto exit;
     }
     pattern = args[0];
-    flags = _PyLong_AsInt(args[1]);
+    flags = PyLong_AsInt(args[1]);
     if (flags == -1 && PyErr_Occurred()) {
         goto exit;
     }
@@ -1460,4 +1499,8 @@ _sre_SRE_Scanner_search(ScannerObject *self, PyTypeObject *cls, PyObject *const 
     }
     return _sre_SRE_Scanner_search_impl(self, cls);
 }
-/*[clinic end generated code: output=045de53cfe02dee0 input=a9049054013a1b77]*/
+
+#ifndef _SRE_SRE_PATTERN__FAIL_AFTER_METHODDEF
+    #define _SRE_SRE_PATTERN__FAIL_AFTER_METHODDEF
+#endif /* !defined(_SRE_SRE_PATTERN__FAIL_AFTER_METHODDEF) */
+/*[clinic end generated code: output=32f2528c7b5b6081 input=a9049054013a1b77]*/

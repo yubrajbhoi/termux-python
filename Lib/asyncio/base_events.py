@@ -17,7 +17,6 @@ import collections
 import collections.abc
 import concurrent.futures
 import errno
-import functools
 import heapq
 import itertools
 import os
@@ -279,7 +278,9 @@ class Server(events.AbstractServer):
                  ssl_handshake_timeout, ssl_shutdown_timeout=None):
         self._loop = loop
         self._sockets = sockets
-        self._active_count = 0
+        # Weak references so we don't break Transport's ability to
+        # detect abandoned transports
+        self._clients = weakref.WeakSet()
         self._waiters = []
         self._protocol_factory = protocol_factory
         self._backlog = backlog
@@ -292,14 +293,13 @@ class Server(events.AbstractServer):
     def __repr__(self):
         return f'<{self.__class__.__name__} sockets={self.sockets!r}>'
 
-    def _attach(self):
+    def _attach(self, transport):
         assert self._sockets is not None
-        self._active_count += 1
+        self._clients.add(transport)
 
-    def _detach(self):
-        assert self._active_count > 0
-        self._active_count -= 1
-        if self._active_count == 0 and self._sockets is None:
+    def _detach(self, transport):
+        self._clients.discard(transport)
+        if len(self._clients) == 0 and self._sockets is None:
             self._wakeup()
 
     def _wakeup(self):
@@ -348,8 +348,16 @@ class Server(events.AbstractServer):
             self._serving_forever_fut.cancel()
             self._serving_forever_fut = None
 
-        if self._active_count == 0:
+        if len(self._clients) == 0:
             self._wakeup()
+
+    def close_clients(self):
+        for transport in self._clients.copy():
+            transport.close()
+
+    def abort_clients(self):
+        for transport in self._clients.copy():
+            transport.abort()
 
     async def start_serving(self):
         self._start_serving()
@@ -422,6 +430,8 @@ class BaseEventLoop(events.AbstractEventLoop):
         self._clock_resolution = time.get_clock_info('monotonic').resolution
         self._exception_handler = None
         self.set_debug(coroutines._is_debug_mode())
+        # The preserved state of async generator hooks.
+        self._old_agen_hooks = None
         # In debug mode, if the execution of a callback or a step of a task
         # exceed this duration in seconds, the slow callback/task is logged.
         self.slow_callback_duration = 0.1
@@ -465,7 +475,7 @@ class BaseEventLoop(events.AbstractEventLoop):
             else:
                 task = self._task_factory(self, coro, context=context)
 
-            tasks._set_task_name(task, name)
+            task.set_name(name)
 
         return task
 
@@ -624,29 +634,52 @@ class BaseEventLoop(events.AbstractEventLoop):
             raise RuntimeError(
                 'Cannot run the event loop while another loop is running')
 
-    def run_forever(self):
-        """Run until stop() is called."""
+    def _run_forever_setup(self):
+        """Prepare the run loop to process events.
+
+        This method exists so that custom custom event loop subclasses (e.g., event loops
+        that integrate a GUI event loop with Python's event loop) have access to all the
+        loop setup logic.
+        """
         self._check_closed()
         self._check_running()
         self._set_coroutine_origin_tracking(self._debug)
 
-        old_agen_hooks = sys.get_asyncgen_hooks()
-        try:
-            self._thread_id = threading.get_ident()
-            sys.set_asyncgen_hooks(firstiter=self._asyncgen_firstiter_hook,
-                                   finalizer=self._asyncgen_finalizer_hook)
+        self._old_agen_hooks = sys.get_asyncgen_hooks()
+        self._thread_id = threading.get_ident()
+        sys.set_asyncgen_hooks(
+            firstiter=self._asyncgen_firstiter_hook,
+            finalizer=self._asyncgen_finalizer_hook
+        )
 
-            events._set_running_loop(self)
+        events._set_running_loop(self)
+
+    def _run_forever_cleanup(self):
+        """Clean up after an event loop finishes the looping over events.
+
+        This method exists so that custom custom event loop subclasses (e.g., event loops
+        that integrate a GUI event loop with Python's event loop) have access to all the
+        loop cleanup logic.
+        """
+        self._stopping = False
+        self._thread_id = None
+        events._set_running_loop(None)
+        self._set_coroutine_origin_tracking(False)
+        # Restore any pre-existing async generator hooks.
+        if self._old_agen_hooks is not None:
+            sys.set_asyncgen_hooks(*self._old_agen_hooks)
+            self._old_agen_hooks = None
+
+    def run_forever(self):
+        """Run until stop() is called."""
+        try:
+            self._run_forever_setup()
             while True:
                 self._run_once()
                 if self._stopping:
                     break
         finally:
-            self._stopping = False
-            self._thread_id = None
-            events._set_running_loop(None)
-            self._set_coroutine_origin_tracking(False)
-            sys.set_asyncgen_hooks(*old_agen_hooks)
+            self._run_forever_cleanup()
 
     def run_until_complete(self, future):
         """Run until the Future is done.
@@ -1106,11 +1139,18 @@ class BaseEventLoop(events.AbstractEventLoop):
                     except OSError:
                         continue
             else:  # using happy eyeballs
-                sock, _, _ = await staggered.staggered_race(
-                    (functools.partial(self._connect_sock,
-                                       exceptions, addrinfo, laddr_infos)
-                     for addrinfo in infos),
-                    happy_eyeballs_delay, loop=self)
+                sock = (await staggered.staggered_race(
+                    (
+                        # can't use functools.partial as it keeps a reference
+                        # to exceptions
+                        lambda addrinfo=addrinfo: self._connect_sock(
+                            exceptions, addrinfo, laddr_infos
+                        )
+                        for addrinfo in infos
+                    ),
+                    happy_eyeballs_delay,
+                    loop=self,
+                ))[0]  # can't use sock, _, _ as it keeks a reference to exceptions
 
             if sock is None:
                 exceptions = [exc for sub in exceptions for exc in sub]
@@ -1473,6 +1513,7 @@ class BaseEventLoop(events.AbstractEventLoop):
             ssl=None,
             reuse_address=None,
             reuse_port=None,
+            keep_alive=None,
             ssl_handshake_timeout=None,
             ssl_shutdown_timeout=None,
             start_serving=True):
@@ -1546,6 +1587,9 @@ class BaseEventLoop(events.AbstractEventLoop):
                             socket.SOL_SOCKET, socket.SO_REUSEADDR, True)
                     if reuse_port:
                         _set_reuseport(sock)
+                    if keep_alive:
+                        sock.setsockopt(
+                            socket.SOL_SOCKET, socket.SO_KEEPALIVE, True)
                     # Disable IPv4/IPv6 dual stack support (enabled by
                     # default on Linux) which makes a single socket
                     # listen on both address families.
@@ -1942,8 +1986,11 @@ class BaseEventLoop(events.AbstractEventLoop):
             timeout = 0
         elif self._scheduled:
             # Compute the desired timeout.
-            when = self._scheduled[0]._when
-            timeout = min(max(0, when - self.time()), MAXIMUM_SELECT_TIMEOUT)
+            timeout = self._scheduled[0]._when - self.time()
+            if timeout > MAXIMUM_SELECT_TIMEOUT:
+                timeout = MAXIMUM_SELECT_TIMEOUT
+            elif timeout < 0:
+                timeout = 0
 
         event_list = self._selector.select(timeout)
         self._process_events(event_list)

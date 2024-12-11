@@ -343,6 +343,12 @@ Directory and files operations
    .. versionchanged:: 3.12
       Added the *onexc* parameter, deprecated *onerror*.
 
+   .. versionchanged:: 3.13
+      :func:`!rmtree` now ignores :exc:`FileNotFoundError` exceptions for all
+      but the top-level path.
+      Exceptions other than :exc:`OSError` and subclasses of :exc:`!OSError`
+      are now always propagated to the caller.
+
    .. attribute:: rmtree.avoids_symlink_attacks
 
       Indicates whether the current platform and implementation provides a
@@ -415,7 +421,8 @@ Directory and files operations
 
    .. availability:: Unix, Windows.
 
-.. function:: chown(path, user=None, group=None)
+.. function:: chown(path, user=None, group=None, *, dir_fd=None, \
+                    follow_symlinks=True)
 
    Change owner *user* and/or *group* of the given *path*.
 
@@ -430,6 +437,9 @@ Directory and files operations
 
    .. versionadded:: 3.3
 
+   .. versionchanged:: 3.13
+      Added *dir_fd* and *follow_symlinks* parameters.
+
 
 .. function:: which(cmd, mode=os.F_OK | os.X_OK, path=None)
 
@@ -439,8 +449,10 @@ Directory and files operations
    *mode* is a permission mask passed to :func:`os.access`, by default
    determining if the file exists and is executable.
 
-   When no *path* is specified, the results of :func:`os.environ` are used,
-   returning either the "PATH" value or a fallback of :data:`os.defpath`.
+   *path* is a "``PATH`` string" specifying the directories to look in,
+   delimited by :data:`os.pathsep`. When no *path* is specified, the
+   :envvar:`PATH` environment variable is read from :data:`os.environ`,
+   falling back to :data:`os.defpath` if it is not set.
 
    On Windows, the current directory is prepended to the *path* if *mode* does
    not include ``os.X_OK``. When the *mode* does include ``os.X_OK``, the
@@ -449,9 +461,9 @@ Directory and files operations
    consulting the current working directory for executables: set the environment
    variable ``NoDefaultCurrentDirectoryInExePath``.
 
-   Also on Windows, the ``PATHEXT`` variable is used to resolve commands
-   that may not already include an extension. For example, if you call
-   ``shutil.which("python")``, :func:`which` will search ``PATHEXT``
+   Also on Windows, the :envvar:`PATHEXT` environment variable is used to
+   resolve commands that may not already include an extension. For example,
+   if you call ``shutil.which("python")``, :func:`which` will search ``PATHEXT``
    to know that it should look for ``python.exe`` within the *path*
    directories. For example, on Windows::
 
@@ -478,12 +490,6 @@ Directory and files operations
       ``PATHEXT`` is used now even when *cmd* includes a directory component
       or ends with an extension that is in ``PATHEXT``; and filenames that
       have no extension can now be found.
-
-   .. versionchanged:: 3.12.1
-      On Windows, if *mode* includes ``os.X_OK``, executables with an
-      extension in ``PATHEXT`` will be preferred over executables without a
-      matching extension.
-      This brings behavior closer to that of Python 3.11.
 
 .. exception:: Error
 

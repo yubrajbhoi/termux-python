@@ -3,7 +3,7 @@ import sys
 import os
 from typing import Any, NoReturn
 
-from test.support import os_helper
+from test.support import os_helper, Py_DEBUG
 
 from .setup import setup_process, setup_test_dir
 from .runtests import WorkerRunTests, JsonFile, JsonFileType
@@ -17,7 +17,7 @@ USE_PROCESS_GROUP = (hasattr(os, "setsid") and hasattr(os, "killpg"))
 
 
 def create_worker_process(runtests: WorkerRunTests, output_fd: int,
-                          tmp_dir: StrPath | None = None) -> subprocess.Popen:
+                          tmp_dir: StrPath | None = None) -> subprocess.Popen[str]:
     worker_json = runtests.as_json()
 
     cmd = runtests.create_python_cmd()
@@ -75,6 +75,18 @@ def worker_process(worker_json: StrJSON) -> NoReturn:
             print(f"Re-running {test_name} in verbose mode", flush=True)
 
     result = run_single_test(test_name, runtests)
+    if runtests.coverage:
+        if "test.cov" in sys.modules:  # imported by -Xpresite=
+            result.covered_lines = list(sys.modules["test.cov"].coverage)
+        elif not Py_DEBUG:
+            print(
+                "Gathering coverage in worker processes requires --with-pydebug",
+                flush=True,
+            )
+        else:
+            raise LookupError(
+                "`test.cov` not found in sys.modules but coverage wanted"
+            )
 
     if json_file.file_type == JsonFileType.STDOUT:
         print()

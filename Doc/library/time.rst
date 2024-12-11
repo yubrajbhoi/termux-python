@@ -193,7 +193,7 @@ Functions
    Use :func:`clock_settime_ns` to avoid the precision loss caused by the
    :class:`float` type.
 
-   .. availability:: Unix.
+   .. availability:: Unix, not Android, not iOS.
 
    .. versionadded:: 3.3
 
@@ -202,7 +202,7 @@ Functions
 
    Similar to :func:`clock_settime` but set time with nanoseconds.
 
-   .. availability:: Unix.
+   .. availability:: Unix, not Android, not iOS.
 
    .. versionadded:: 3.7
 
@@ -287,6 +287,15 @@ Functions
    The reference point of the returned value is undefined, so that only the
    difference between the results of two calls is valid.
 
+   Clock:
+
+   * On Windows, call ``QueryPerformanceCounter()`` and
+     ``QueryPerformanceFrequency()``.
+   * On macOS, call ``mach_absolute_time()`` and ``mach_timebase_info()``.
+   * On HP-UX, call ``gethrtime()``.
+   * Call ``clock_gettime(CLOCK_HIGHRES)`` if available.
+   * Otherwise, call ``clock_gettime(CLOCK_MONOTONIC)``.
+
    Use :func:`monotonic_ns` to avoid the precision loss caused by the
    :class:`float` type.
 
@@ -316,6 +325,11 @@ Functions
    point of the returned value is undefined, so that only the difference between
    the results of two calls is valid.
 
+   .. impl-detail::
+
+      On CPython, use the same clock as :func:`time.monotonic` and is a
+      monotonic clock, i.e. a clock that cannot go backwards.
+
    Use :func:`perf_counter_ns` to avoid the precision loss caused by the
    :class:`float` type.
 
@@ -323,6 +337,10 @@ Functions
 
    .. versionchanged:: 3.10
       On Windows, the function is now system-wide.
+
+   .. versionchanged:: 3.13
+      Use the same clock as :func:`time.monotonic`.
+
 
 .. function:: perf_counter_ns() -> int
 
@@ -372,7 +390,7 @@ Functions
    threads ready to run, the function returns immediately, and the thread
    continues execution.  On Windows 8.1 and newer the implementation uses
    a `high-resolution timer
-   <https://docs.microsoft.com/en-us/windows-hardware/drivers/kernel/high-resolution-timers>`_
+   <https://learn.microsoft.com/windows-hardware/drivers/kernel/high-resolution-timers>`_
    which provides resolution of 100 nanoseconds. If *secs* is zero, ``Sleep(0)`` is used.
 
    Unix implementation:
@@ -380,6 +398,8 @@ Functions
    * Use ``clock_nanosleep()`` if available (resolution: 1 nanosecond);
    * Or use ``nanosleep()`` if available (resolution: 1 nanosecond);
    * Or use ``select()`` (resolution: 1 microsecond).
+
+   .. audit-event:: time.sleep secs
 
    .. versionchanged:: 3.5
       The function now sleeps at least *secs* even if the sleep is interrupted
@@ -389,6 +409,9 @@ Functions
    .. versionchanged:: 3.11
       On Unix, the ``clock_nanosleep()`` and ``nanosleep()`` functions are now
       used if available. On Windows, a waitable timer is now used.
+
+   .. versionchanged:: 3.13
+      Raises an auditing event.
 
 .. index::
    single: % (percent); datetime format
@@ -460,6 +483,9 @@ Functions
    |           |                                                |       |
    |           |                                                |       |
    +-----------+------------------------------------------------+-------+
+   | ``%u``    | Day of the week (Monday is 1; Sunday is 7)     |       |
+   |           | as a decimal number [1, 7].                    |       |
+   +-----------+------------------------------------------------+-------+
    | ``%w``    | Weekday as a decimal number [0(Sunday),6].     |       |
    |           |                                                |       |
    +-----------+------------------------------------------------+-------+
@@ -491,6 +517,16 @@ Functions
    +-----------+------------------------------------------------+-------+
    | ``%Z``    | Time zone name (no characters if no time zone  |       |
    |           | exists). Deprecated. [1]_                      |       |
+   +-----------+------------------------------------------------+-------+
+   | ``%G``    | ISO 8601 year (similar to ``%Y`` but follows   |       |
+   |           | the rules for the ISO 8601 calendar year).     |       |
+   |           | The year starts with the week that contains    |       |
+   |           | the first Thursday of the calendar year.       |       |
+   +-----------+------------------------------------------------+-------+
+   | ``%V``    | ISO 8601 week number (as a decimal number      |       |
+   |           | [01,53]). The first week of the year is the    |       |
+   |           | one that contains the first Thursday of the    |       |
+   |           | year. Weeks start on Monday.                   |       |
    +-----------+------------------------------------------------+-------+
    | ``%%``    | A literal ``'%'`` character.                   |       |
    +-----------+------------------------------------------------+-------+
@@ -660,6 +696,12 @@ Functions
    :func:`localtime` function. In both cases a
    :class:`struct_time` object is returned, from which the components
    of the calendar date may be accessed as attributes.
+
+   Clock:
+
+   * On Windows, call ``GetSystemTimeAsFileTime()``.
+   * Call ``clock_gettime(CLOCK_REALTIME)`` if available.
+   * Otherwise, call ``gettimeofday()``.
 
    Use :func:`time_ns` to avoid the precision loss caused by the :class:`float`
    type.
@@ -844,6 +886,15 @@ These constants are used as parameters for :func:`clock_getres` and
 
    .. versionadded:: 3.3
 
+.. data:: CLOCK_MONOTONIC_RAW_APPROX
+
+   Similar to :data:`CLOCK_MONOTONIC_RAW`, but reads a value cached by
+   the system at context switch and hence has less accuracy.
+
+   .. availability:: macOS >= 10.12.
+
+   .. versionadded:: 3.13
+
 
 .. data:: CLOCK_PROCESS_CPUTIME_ID
 
@@ -902,6 +953,15 @@ These constants are used as parameters for :func:`clock_getres` and
    .. availability:: macOS >= 10.12.
 
    .. versionadded:: 3.8
+
+.. data:: CLOCK_UPTIME_RAW_APPROX
+
+   Like :data:`CLOCK_UPTIME_RAW`, but the value is cached by the system
+   at context switches and therefore has less accuracy.
+
+   .. availability:: macOS >= 10.12.
+
+   .. versionadded:: 3.13
 
 The following constant is the only parameter that can be sent to
 :func:`clock_settime`.

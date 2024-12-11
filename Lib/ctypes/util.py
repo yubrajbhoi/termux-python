@@ -67,7 +67,7 @@ if os.name == "nt":
                 return fname
         return None
 
-elif os.name == "posix" and sys.platform == "darwin":
+elif os.name == "posix" and sys.platform in {"darwin", "ios", "tvos", "watchos"}:
     from ctypes.macholib.dyld import dyld_find as _dyld_find
     def find_library(name):
         possible = ['lib%s.dylib' % name,
@@ -88,6 +88,15 @@ elif sys.platform.startswith("aix"):
     # see issue#26439 and _aix.py for more details
 
     from ctypes._aix import find_library
+
+elif sys.platform == "android":
+    def find_library(name):
+        directory = "/system/lib"
+        if "64" in os.uname().machine:
+            directory += "64"
+
+        fname = f"{directory}/lib{name}.so"
+        return fname if os.path.isfile(fname) else None
 
 elif os.name == "posix":
     # Andreas Degert's find functions, using gcc, /sbin/ldconfig, objdump
@@ -175,7 +184,7 @@ elif os.name == "posix":
             # assuming GNU binutils / ELF
             if not f:
                 return None
-            objdump = shutil.which('llvm-objdump')
+            objdump = shutil.which('objdump')
             if not objdump:
                 # objdump is not available, give up
                 return None
@@ -212,7 +221,7 @@ elif os.name == "posix":
             expr = os.fsencode(expr)
 
             try:
-                proc = subprocess.Popen(('/data/data/com.termux/files/usr/bin/ldconfig', '-r'),
+                proc = subprocess.Popen(('/sbin/ldconfig', '-r'),
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.DEVNULL)
             except OSError:  # E.g. command not found
@@ -303,7 +312,7 @@ elif os.name == "posix":
         def _findLib_ld(name):
             # See issue #9998 for why this is needed
             expr = r'[^\(\)\s]*lib%s\.[^\(\)\s]*' % re.escape(name)
-            cmd = ['ld.lld', '-t']
+            cmd = ['ld', '-t']
             libpath = os.environ.get('LD_LIBRARY_PATH')
             if libpath:
                 for d in libpath.split(':'):

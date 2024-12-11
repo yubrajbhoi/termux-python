@@ -528,28 +528,6 @@ type objects) *must* have the :c:member:`~PyVarObject.ob_size` field.
    This field is inherited by subtypes.
 
 
-.. c:member:: PyObject* PyObject._ob_next
-             PyObject* PyObject._ob_prev
-
-   These fields are only present when the macro ``Py_TRACE_REFS`` is defined
-   (see the :option:`configure --with-trace-refs option <--with-trace-refs>`).
-
-   Their initialization to ``NULL`` is taken care of by the
-   ``PyObject_HEAD_INIT`` macro.  For :ref:`statically allocated objects
-   <static-types>`, these fields always remain ``NULL``.  For :ref:`dynamically
-   allocated objects <heap-types>`, these two fields are used to link the
-   object into a doubly linked list of *all* live objects on the heap.
-
-   This could be used for various debugging purposes; currently the only uses
-   are the :func:`sys.getobjects` function and to print the objects that are
-   still alive at the end of a run when the environment variable
-   :envvar:`PYTHONDUMPREFS` is set.
-
-   **Inheritance:**
-
-   These fields are not inherited by subtypes.
-
-
 PyVarObject Slots
 -----------------
 
@@ -589,12 +567,12 @@ and :c:data:`PyType_Type` effectively act as defaults.)
 
    For :ref:`statically allocated type objects <static-types>`,
    the *tp_name* field should contain a dot.
-   Everything before the last dot is made accessible as the :attr:`__module__`
+   Everything before the last dot is made accessible as the :attr:`~type.__module__`
    attribute, and everything after the last dot is made accessible as the
-   :attr:`~definition.__name__` attribute.
+   :attr:`~type.__name__` attribute.
 
    If no dot is present, the entire :c:member:`~PyTypeObject.tp_name` field is made accessible as the
-   :attr:`~definition.__name__` attribute, and the :attr:`__module__` attribute is undefined
+   :attr:`~type.__name__` attribute, and the :attr:`~type.__module__` attribute is undefined
    (unless explicitly set in the dictionary, as explained above).  This means your
    type will be impossible to pickle.  Additionally, it will not be listed in
    module documentations created with pydoc.
@@ -703,6 +681,19 @@ and :c:data:`PyType_Type` effectively act as defaults.)
          tp->tp_free(self);
          Py_DECREF(tp);
      }
+
+   .. warning::
+
+      In a garbage collected Python, :c:member:`!tp_dealloc` may be called from
+      any Python thread, not just the thread which created the object (if the
+      object becomes part of a refcount cycle, that cycle might be collected by
+      a garbage collection on any thread).  This is not a problem for Python
+      API calls, since the thread on which :c:member:`!tp_dealloc` is called
+      will own the Global Interpreter Lock (GIL).  However, if the object being
+      destroyed in turn destroys objects from some other C or C++ library, care
+      should be taken to ensure that destroying those objects on the thread
+      which called :c:member:`!tp_dealloc` will not violate any assumptions of
+      the library.
 
 
    **Inheritance:**
@@ -904,6 +895,10 @@ and :c:data:`PyType_Type` effectively act as defaults.)
    :c:member:`~PyTypeObject.tp_richcompare`: a subtype inherits both of
    :c:member:`~PyTypeObject.tp_richcompare` and :c:member:`~PyTypeObject.tp_hash`, when the subtype's
    :c:member:`~PyTypeObject.tp_richcompare` and :c:member:`~PyTypeObject.tp_hash` are both ``NULL``.
+
+   **Default:**
+
+   :c:data:`PyBaseObject_Type` uses :c:func:`PyObject_GenericHash`.
 
 
 .. c:member:: ternaryfunc PyTypeObject.tp_call
@@ -1149,10 +1144,13 @@ and :c:data:`PyType_Type` effectively act as defaults.)
 
    .. c:macro:: Py_TPFLAGS_MANAGED_DICT
 
-      This bit indicates that instances of the class have a ``__dict__``
+      This bit indicates that instances of the class have a `~object.__dict__`
       attribute, and that the space for the dictionary is managed by the VM.
 
       If this flag is set, :c:macro:`Py_TPFLAGS_HAVE_GC` should also be set.
+
+      The type traverse function must call :c:func:`PyObject_VisitManagedDict`
+      and its clear function must call :c:func:`PyObject_ClearManagedDict`.
 
       .. versionadded:: 3.12
 
@@ -1343,15 +1341,15 @@ and :c:data:`PyType_Type` effectively act as defaults.)
       To indicate that a class has changed call :c:func:`PyType_Modified`
 
       .. warning::
-         This flag is present in header files, but is an internal feature and should
-         not be used. It will be removed in a future version of CPython
+         This flag is present in header files, but is not be used.
+         It will be removed in a future version of CPython
 
 
 .. c:member:: const char* PyTypeObject.tp_doc
 
    An optional pointer to a NUL-terminated C string giving the docstring for this
-   type object.  This is exposed as the :attr:`__doc__` attribute on the type and
-   instances of the type.
+   type object.  This is exposed as the :attr:`~type.__doc__` attribute on the
+   type and instances of the type.
 
    **Inheritance:**
 
@@ -1391,6 +1389,23 @@ and :c:data:`PyType_Type` effectively act as defaults.)
    debugging aid you may want to visit it anyway just so the :mod:`gc` module's
    :func:`~gc.get_referents` function will include it.
 
+   Heap types (:c:macro:`Py_TPFLAGS_HEAPTYPE`) must visit their type with::
+
+       Py_VISIT(Py_TYPE(self));
+
+   It is only needed since Python 3.9. To support Python 3.8 and older, this
+   line must be conditional::
+
+       #if PY_VERSION_HEX >= 0x03090000
+           Py_VISIT(Py_TYPE(self));
+       #endif
+
+   If the :c:macro:`Py_TPFLAGS_MANAGED_DICT` bit is set in the
+   :c:member:`~PyTypeObject.tp_flags` field, the traverse function must call
+   :c:func:`PyObject_VisitManagedDict` like this::
+
+       PyObject_VisitManagedDict((PyObject*)self, visit, arg);
+
    .. warning::
        When implementing :c:member:`~PyTypeObject.tp_traverse`, only the
        members that the instance *owns* (by having :term:`strong references
@@ -1404,7 +1419,7 @@ and :c:data:`PyType_Type` effectively act as defaults.)
        are allowed to be removed even if the instance is still alive).
 
    Note that :c:func:`Py_VISIT` requires the *visit* and *arg* parameters to
-   :c:func:`local_traverse` to have these specific names; don't name them just
+   :c:func:`!local_traverse` to have these specific names; don't name them just
    anything.
 
    Instances of :ref:`heap-allocated types <heap-types>` hold a reference to
@@ -1473,6 +1488,12 @@ and :c:data:`PyType_Type` effectively act as defaults.)
    it's important that the pointer to the contained object be ``NULL`` at that time,
    so that *self* knows the contained object can no longer be used.  The
    :c:func:`Py_CLEAR` macro performs the operations in a safe order.
+
+   If the :c:macro:`Py_TPFLAGS_MANAGED_DICT` bit is set in the
+   :c:member:`~PyTypeObject.tp_flags` field, the traverse function must call
+   :c:func:`PyObject_ClearManagedDict` like this::
+
+       PyObject_ClearManagedDict((PyObject*)self);
 
    Note that :c:member:`~PyTypeObject.tp_clear` is not *always* called
    before an instance is deallocated. For example, when reference counting
@@ -1824,7 +1845,7 @@ and :c:data:`PyType_Type` effectively act as defaults.)
    field is ``NULL`` then no :attr:`~object.__dict__` gets created for instances.
 
    If the :c:macro:`Py_TPFLAGS_MANAGED_DICT` bit is set in the
-   :c:member:`~PyTypeObject.tp_dict` field, then
+   :c:member:`~PyTypeObject.tp_flags` field, then
    :c:member:`~PyTypeObject.tp_dictoffset` will be set to ``-1``, to indicate
    that it is unsafe to use this field.
 
@@ -2028,7 +2049,7 @@ and :c:data:`PyType_Type` effectively act as defaults.)
    A collection of subclasses.  Internal use only.  May be an invalid pointer.
 
    To get a list of subclasses, call the Python method
-   :py:meth:`~class.__subclasses__`.
+   :py:meth:`~type.__subclasses__`.
 
    .. versionchanged:: 3.12
 
@@ -2100,17 +2121,6 @@ and :c:data:`PyType_Type` effectively act as defaults.)
           /* Restore the saved exception. */
           PyErr_Restore(error_type, error_value, error_traceback);
       }
-
-   Also, note that, in a garbage collected Python,
-   :c:member:`~PyTypeObject.tp_dealloc` may be called from
-   any Python thread, not just the thread which created the object (if the object
-   becomes part of a refcount cycle, that cycle might be collected by a garbage
-   collection on any thread).  This is not a problem for Python API calls, since
-   the thread on which tp_dealloc is called will own the Global Interpreter Lock
-   (GIL). However, if the object being destroyed in turn destroys objects from some
-   other C or C++ library, care should be taken to ensure that destroying those
-   objects on the thread which called tp_dealloc will not violate any assumptions
-   of the library.
 
    **Inheritance:**
 
@@ -2191,7 +2201,7 @@ This is done by filling a :c:type:`PyType_Spec` structure and calling
 .. _number-structs:
 
 Number Object Structures
-========================
+------------------------
 
 .. sectionauthor:: Amaury Forgeot d'Arc
 
@@ -2305,7 +2315,7 @@ Number Object Structures
 .. _mapping-structs:
 
 Mapping Object Structures
-=========================
+-------------------------
 
 .. sectionauthor:: Amaury Forgeot d'Arc
 
@@ -2342,7 +2352,7 @@ Mapping Object Structures
 .. _sequence-structs:
 
 Sequence Object Structures
-==========================
+--------------------------
 
 .. sectionauthor:: Amaury Forgeot d'Arc
 
@@ -2422,7 +2432,7 @@ Sequence Object Structures
 .. _buffer-structs:
 
 Buffer Object Structures
-========================
+------------------------
 
 .. sectionauthor:: Greg J. Stein <greg@lyra.org>
 .. sectionauthor:: Benjamin Peterson
@@ -2517,7 +2527,7 @@ Buffer Object Structures
 
 
 Async Object Structures
-=======================
+-----------------------
 
 .. sectionauthor:: Yury Selivanov <yselivanov@sprymix.com>
 
@@ -2585,7 +2595,7 @@ Async Object Structures
 .. _slot-typedefs:
 
 Slot Type typedefs
-==================
+------------------
 
 .. c:type:: PyObject *(*allocfunc)(PyTypeObject *cls, Py_ssize_t nitems)
 
@@ -2694,7 +2704,7 @@ Slot Type typedefs
 .. _typedef-examples:
 
 Examples
-========
+--------
 
 The following are simple examples of Python type definitions.  They
 include common usage you may encounter.  Some demonstrate tricky corner

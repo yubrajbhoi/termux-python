@@ -1,8 +1,12 @@
-What's New in IDLE 3.12.z
+What's New in IDLE 3.13.0
 (since 3.12.0)
-Released after 2023-10-02
+Released on 2024-10-xx
 =========================
 
+
+gh-120083: Add explicit black IDLE Hovertip foreground color needed for
+recent macOS. Fixes Sonoma showing unreadable white on pale yellow.
+Patch by John Riggles.
 
 gh-122482: Change About IDLE to direct users to discuss.python.org
 instead of the now unused idle-dev email and mailing list.
@@ -30,7 +34,8 @@ Patch by Terry Reedy.
 gh-112939: Fix processing unsaved files when quitting IDLE on macOS.
 Patch by Ronald Oussoren and Christopher Chavez.
 
-gh-79871: Add docstrings to debugger.py.  Fix two bugs in test_debugger and expand coverage by 47%.  Patch by Anthony Shaw.
+gh-79871: Add docstrings to debugger.py.  Fix two bugs in
+test_debugger and expand coverage by 47%.  Patch by Anthony Shaw.
 
 
 What's New in IDLE 3.12.0

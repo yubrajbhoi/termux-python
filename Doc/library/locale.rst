@@ -281,7 +281,8 @@ The :mod:`locale` module defines the following exception and functions:
 
    .. data:: ERA
 
-      Get a string that represents the era used in the current locale.
+      Get a string which describes how years are counted and displayed for
+      each era in a locale.
 
       Most locales do not define this value.  An example of a locale which does
       define this value is the Japanese one.  In Japan, the traditional
@@ -290,9 +291,10 @@ The :mod:`locale` module defines the following exception and functions:
 
       Normally it should not be necessary to use this value directly. Specifying
       the ``E`` modifier in their format strings causes the :func:`time.strftime`
-      function to use this information.  The format of the returned string is not
-      specified, and therefore you should not assume knowledge of it on different
-      systems.
+      function to use this information.
+      The format of the returned string is specified in *The Open Group Base
+      Specifications Issue 8*, paragraph `7.3.5.2 LC_TIME C-Language Access
+      <https://pubs.opengroup.org/onlinepubs/9799919799/basedefs/V1_chap07.html#tag_07_03_05_02>`_.
 
    .. data:: ERA_D_T_FMT
 
@@ -311,8 +313,9 @@ The :mod:`locale` module defines the following exception and functions:
 
    .. data:: ALT_DIGITS
 
-      Get a representation of up to 100 values used to represent the values
-      0 to 99.
+      Get a string consisting of up to 100 semicolon-separated symbols used
+      to represent the values 0 to 99 in a locale-specific way.
+      In most locales this is an empty string.
 
 
 .. function:: getdefaultlocale([envvars])
@@ -402,16 +405,6 @@ The :mod:`locale` module defines the following exception and functions:
 
    If the given encoding is not known, the function defaults to the default
    encoding for the locale code just like :func:`setlocale`.
-
-
-.. function:: resetlocale(category=LC_ALL)
-
-   Sets the locale for *category* to the default setting.
-
-   The default setting is determined by calling :func:`getdefaultlocale`.
-   *category* defaults to :const:`LC_ALL`.
-
-   .. deprecated-removed:: 3.11 3.13
 
 
 .. function:: strcoll(string1, string2)

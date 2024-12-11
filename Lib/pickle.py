@@ -397,6 +397,8 @@ def decode_long(data):
     return int.from_bytes(data, byteorder='little', signed=True)
 
 
+_NoValue = object()
+
 # Pickling machinery
 
 class _Pickler:
@@ -531,10 +533,11 @@ class _Pickler:
         self.framer.commit_frame()
 
         # Check for persistent id (defined by a subclass)
-        pid = self.persistent_id(obj)
-        if pid is not None and save_persistent_id:
-            self.save_pers(pid)
-            return
+        if save_persistent_id:
+            pid = self.persistent_id(obj)
+            if pid is not None:
+                self.save_pers(pid)
+                return
 
         # Check the memo
         x = self.memo.get(id(obj))
@@ -543,8 +546,8 @@ class _Pickler:
             return
 
         rv = NotImplemented
-        reduce = getattr(self, "reducer_override", None)
-        if reduce is not None:
+        reduce = getattr(self, "reducer_override", _NoValue)
+        if reduce is not _NoValue:
             rv = reduce(obj)
 
         if rv is NotImplemented:
@@ -557,8 +560,8 @@ class _Pickler:
 
             # Check private dispatch table if any, or else
             # copyreg.dispatch_table
-            reduce = getattr(self, 'dispatch_table', dispatch_table).get(t)
-            if reduce is not None:
+            reduce = getattr(self, 'dispatch_table', dispatch_table).get(t, _NoValue)
+            if reduce is not _NoValue:
                 rv = reduce(obj)
             else:
                 # Check for a class with a custom metaclass; treat as regular
@@ -568,12 +571,12 @@ class _Pickler:
                     return
 
                 # Check for a __reduce_ex__ method, fall back to __reduce__
-                reduce = getattr(obj, "__reduce_ex__", None)
-                if reduce is not None:
+                reduce = getattr(obj, "__reduce_ex__", _NoValue)
+                if reduce is not _NoValue:
                     rv = reduce(self.proto)
                 else:
-                    reduce = getattr(obj, "__reduce__", None)
-                    if reduce is not None:
+                    reduce = getattr(obj, "__reduce__", _NoValue)
+                    if reduce is not _NoValue:
                         rv = reduce()
                     else:
                         raise PicklingError("Can't pickle %r object: %r" %
@@ -1091,11 +1094,16 @@ class _Pickler:
                     (obj, module_name, name))
 
         if self.proto >= 2:
-            code = _extension_registry.get((module_name, name))
-            if code:
-                assert code > 0
+            code = _extension_registry.get((module_name, name), _NoValue)
+            if code is not _NoValue:
                 if code <= 0xff:
-                    write(EXT1 + pack("<B", code))
+                    data = pack("<B", code)
+                    if data == b'\0':
+                        # Should never happen in normal circumstances,
+                        # since the type and the value of the code are
+                        # checked in copyreg.add_extension().
+                        raise RuntimeError("extension code 0 is out of range")
+                    write(EXT1 + data)
                 elif code <= 0xffff:
                     write(EXT2 + pack("<H", code))
                 else:
@@ -1589,9 +1597,8 @@ class _Unpickler:
     dispatch[EXT4[0]] = load_ext4
 
     def get_extension(self, code):
-        nil = []
-        obj = _extension_cache.get(code, nil)
-        if obj is not nil:
+        obj = _extension_cache.get(code, _NoValue)
+        if obj is not _NoValue:
             self.append(obj)
             return
         key = _inverted_registry.get(code)
@@ -1748,8 +1755,8 @@ class _Unpickler:
         stack = self.stack
         state = stack.pop()
         inst = stack[-1]
-        setstate = getattr(inst, "__setstate__", None)
-        if setstate is not None:
+        setstate = getattr(inst, "__setstate__", _NoValue)
+        if setstate is not _NoValue:
             setstate(state)
             return
         slotstate = None

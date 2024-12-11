@@ -225,9 +225,6 @@ class PyclbrTest(TestCase):
 
         # These were once some of the longest modules.
         cm('random', ignore=('Random',))  # from _random import Random as CoreGenerator
-        with warnings.catch_warnings():
-            warnings.simplefilter('ignore', DeprecationWarning)
-            cm('cgi', ignore=('log',))      # set with = in module
         cm('pickle', ignore=('partial', 'PickleBuffer'))
         with warnings.catch_warnings():
             warnings.simplefilter('ignore', DeprecationWarning)
@@ -235,7 +232,7 @@ class PyclbrTest(TestCase):
         cm(
             'pdb',
             # pyclbr does not handle elegantly `typing` or properties
-            ignore=('Union', '_ModuleTarget', '_ScriptTarget'),
+            ignore=('Union', '_ModuleTarget', '_ScriptTarget', '_ZipTarget'),
         )
         cm('pydoc', ignore=('input', 'output',)) # properties
 

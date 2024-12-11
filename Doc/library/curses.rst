@@ -21,6 +21,8 @@ for Windows, DOS, and possibly other systems as well.  This extension module is
 designed to match the API of ncurses, an open-source curses library hosted on
 Linux and the BSD variants of Unix.
 
+.. include:: ../includes/wasm-mobile-notavail.rst
+
 .. note::
 
    Whenever the documentation mentions a *character* it can be specified

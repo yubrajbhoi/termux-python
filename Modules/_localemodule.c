@@ -9,36 +9,26 @@ This software comes with no warranty. Use at your own risk.
 
 ******************************************************************/
 
-#define PY_SSIZE_T_CLEAN
 #include "Python.h"
-#include "pycore_fileutils.h"
+#include "pycore_fileutils.h"     // _Py_GetLocaleconvNumeric()
+#include "pycore_pymem.h"         // _PyMem_Strdup()
 
-#include <stdio.h>
-#include <locale.h>
-#include <string.h>
-#include <ctype.h>
-
+#include <locale.h>               // setlocale()
+#include <string.h>               // strlen()
 #ifdef HAVE_ERRNO_H
-#include <errno.h>
+#  include <errno.h>              // errno
 #endif
-
 #ifdef HAVE_LANGINFO_H
-#include <langinfo.h>
+#  include <langinfo.h>           // nl_langinfo()
 #endif
-
 #ifdef HAVE_LIBINTL_H
-#include <libintl.h>
+#  include <libintl.h>
 #endif
-
-#ifdef HAVE_WCHAR_H
-#include <wchar.h>
-#endif
-
-#if defined(MS_WINDOWS)
-#ifndef WIN32_LEAN_AND_MEAN
-#define WIN32_LEAN_AND_MEAN
-#endif
-#include <windows.h>
+#ifdef MS_WINDOWS
+#  ifndef WIN32_LEAN_AND_MEAN
+#    define WIN32_LEAN_AND_MEAN
+#  endif
+#  include <windows.h>
 #endif
 
 PyDoc_STRVAR(locale__doc__, "Support for POSIX locales.");
@@ -595,6 +585,37 @@ static struct langinfo_constant{
     {0, 0}
 };
 
+#ifdef __GLIBC__
+#if defined(ALT_DIGITS) || defined(ERA)
+static PyObject *
+decode_strings(const char *result, size_t max_count)
+{
+    /* Convert a sequence of NUL-separated C strings to a Python string
+     * containing semicolon separated items. */
+    size_t i = 0;
+    size_t count = 0;
+    for (; count < max_count && result[i]; count++) {
+        i += strlen(result + i) + 1;
+    }
+    char *buf = PyMem_Malloc(i);
+    if (buf == NULL) {
+        PyErr_NoMemory();
+        return NULL;
+    }
+    memcpy(buf, result, i);
+    /* Replace all NULs with semicolons. */
+    i = 0;
+    while (--count) {
+        i += strlen(buf + i);
+        buf[i++] = ';';
+    }
+    PyObject *pyresult = PyUnicode_DecodeLocale(buf, NULL);
+    PyMem_Free(buf);
+    return pyresult;
+}
+#endif
+#endif
+
 /*[clinic input]
 _locale.nl_langinfo
 
@@ -618,7 +639,28 @@ _locale_nl_langinfo_impl(PyObject *module, int item)
                instead of an empty string for nl_langinfo(ERA).  */
             const char *result = nl_langinfo(item);
             result = result != NULL ? result : "";
-            return PyUnicode_DecodeLocale(result, NULL);
+            PyObject *pyresult;
+#ifdef __GLIBC__
+            /* According to the POSIX specification the result must be
+             * a sequence of semicolon-separated strings.
+             * But in Glibc they are NUL-separated. */
+#ifdef ALT_DIGITS
+            if (item == ALT_DIGITS && *result) {
+                pyresult = decode_strings(result, 100);
+            }
+            else
+#endif
+#ifdef ERA
+            if (item == ERA && *result) {
+                pyresult = decode_strings(result, SIZE_MAX);
+            }
+            else
+#endif
+#endif
+            {
+                pyresult = PyUnicode_DecodeLocale(result, NULL);
+            }
+            return pyresult;
         }
     PyErr_SetString(PyExc_ValueError, "unsupported langinfo constant");
     return NULL;
@@ -845,12 +887,7 @@ _locale_exec(PyObject *module)
 
     _locale_state *state = get_locale_state(module);
     state->Error = PyErr_NewException("locale.Error", NULL, NULL);
-    if (state->Error == NULL) {
-        return -1;
-    }
-    Py_INCREF(get_locale_state(module)->Error);
-    if (PyModule_AddObject(module, "Error", get_locale_state(module)->Error) < 0) {
-        Py_DECREF(get_locale_state(module)->Error);
+    if (PyModule_AddObjectRef(module, "Error", state->Error) < 0) {
         return -1;
     }
 
@@ -875,6 +912,7 @@ _locale_exec(PyObject *module)
 static struct PyModuleDef_Slot _locale_slots[] = {
     {Py_mod_exec, _locale_exec},
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_gil, Py_MOD_GIL_NOT_USED},
     {0, NULL}
 };
 

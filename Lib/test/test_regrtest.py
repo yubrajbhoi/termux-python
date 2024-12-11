@@ -24,7 +24,7 @@ import unittest
 from xml.etree import ElementTree
 
 from test import support
-from test.support import os_helper
+from test.support import os_helper, without_optimizer
 from test.libregrtest import cmdline
 from test.libregrtest import main
 from test.libregrtest import setup
@@ -308,13 +308,23 @@ class ParseArgsTestCase(unittest.TestCase):
                 self.assertEqual(ns.use_mp, 2)
                 self.checkError([opt], 'expected one argument')
                 self.checkError([opt, 'foo'], 'invalid int value')
-                self.checkError([opt, '2', '-T'], "don't go together")
-                self.checkError([opt, '0', '-T'], "don't go together")
 
-    def test_coverage(self):
+    def test_coverage_sequential(self):
         for opt in '-T', '--coverage':
             with self.subTest(opt=opt):
-                ns = self.parse_args([opt])
+                with support.captured_stderr() as stderr:
+                    ns = self.parse_args([opt])
+                self.assertTrue(ns.trace)
+                self.assertIn(
+                    "collecting coverage without -j is imprecise",
+                    stderr.getvalue(),
+                )
+
+    @unittest.skipUnless(support.Py_DEBUG, 'need a debug build')
+    def test_coverage_mp(self):
+        for opt in '-T', '--coverage':
+            with self.subTest(opt=opt):
+                ns = self.parse_args([opt, '-j1'])
                 self.assertTrue(ns.trace)
 
     def test_coverdir(self):
@@ -412,7 +422,6 @@ class ParseArgsTestCase(unittest.TestCase):
         self.assertTrue(regrtest.randomize)
         self.assertIsInstance(regrtest.random_seed, int)
         self.assertTrue(regrtest.fail_env_changed)
-        self.assertTrue(regrtest.fail_rerun)
         self.assertTrue(regrtest.print_slowest)
         self.assertTrue(regrtest.output_on_failure)
         self.assertEqual(sorted(regrtest.use_resources), sorted(use_resources))
@@ -465,6 +474,19 @@ class ParseArgsTestCase(unittest.TestCase):
         self.assertEqual(regrtest.hunt_refleak.warmups, 3)
         self.assertEqual(regrtest.hunt_refleak.runs, 10)
         self.assertFalse(regrtest.output_on_failure)
+
+    def test_single_process(self):
+        args = ['-j2', '--single-process']
+        with support.captured_stderr():
+            regrtest = self.create_regrtest(args)
+        self.assertEqual(regrtest.num_workers, 0)
+        self.assertTrue(regrtest.single_process)
+
+        args = ['--fast-ci', '--single-process']
+        with support.captured_stderr():
+            regrtest = self.create_regrtest(args)
+        self.assertEqual(regrtest.num_workers, 0)
+        self.assertTrue(regrtest.single_process)
 
 
 @dataclasses.dataclass(slots=True)
@@ -856,6 +878,8 @@ class ProgramsTestCase(BaseTestCase):
             test_args.append('-x64')   # 64-bit build
         if not support.Py_DEBUG:
             test_args.append('+d')     # Release build, use python.exe
+        if sysconfig.get_config_var("Py_GIL_DISABLED"):
+            test_args.append('--disable-gil')
         self.run_batch(script, *test_args, *self.tests)
 
     @unittest.skipUnless(sys.platform == 'win32', 'Windows only')
@@ -873,6 +897,8 @@ class ProgramsTestCase(BaseTestCase):
             rt_args.append('-x64')   # 64-bit build
         if support.Py_DEBUG:
             rt_args.append('-d')     # Debug build, use python_d.exe
+        if sysconfig.get_config_var("Py_GIL_DISABLED"):
+            rt_args.append('--disable-gil')
         self.run_batch(script, *rt_args, *self.regrtest_args, *self.tests)
 
 
@@ -1154,6 +1180,7 @@ class ArgsTestCase(BaseTestCase):
                                   stats=TestStats(4, 1),
                                   forever=True)
 
+    @without_optimizer
     def check_leak(self, code, what, *, run_workers=False):
         test = self.create_test('huntrleaks', code=code)
 
@@ -1721,6 +1748,10 @@ class ArgsTestCase(BaseTestCase):
 
     @support.cpython_only
     def test_uncollectable(self):
+        try:
+            import _testcapi
+        except ImportError:
+            raise unittest.SkipTest("requires _testcapi")
         code = textwrap.dedent(r"""
             import _testcapi
             import gc
@@ -2103,6 +2134,10 @@ class ArgsTestCase(BaseTestCase):
 
     def check_add_python_opts(self, option):
         # --fast-ci and --slow-ci add "-u -W default -bb -E" options to Python
+        try:
+            import _testinternalcapi
+        except ImportError:
+            raise unittest.SkipTest("requires _testinternalcapi")
         code = textwrap.dedent(r"""
             import sys
             import unittest
@@ -2300,6 +2335,7 @@ class TestUtils(unittest.TestCase):
         for exitcode, expected in (
             (-int(signal.SIGINT), 'SIGINT'),
             (-int(signal.SIGSEGV), 'SIGSEGV'),
+            (128 + int(signal.SIGABRT), 'SIGABRT'),
             (3221225477, "STATUS_ACCESS_VIOLATION"),
             (0xC00000FD, "STATUS_STACK_OVERFLOW"),
         ):

@@ -8,12 +8,16 @@
 
 --------------
 
-:mod:`dbm` is a generic interface to variants of the DBM database ---
-:mod:`dbm.gnu` or :mod:`dbm.ndbm`.  If none of these modules is installed, the
+:mod:`dbm` is a generic interface to variants of the DBM database:
+
+* :mod:`dbm.sqlite3`
+* :mod:`dbm.gnu`
+* :mod:`dbm.ndbm`
+
+If none of these modules are installed, the
 slow-but-simple implementation in module :mod:`dbm.dumb` will be used.  There
 is a `third party interface <https://www.jcea.es/programacion/pybsddb.htm>`_ to
 the Oracle Berkeley DB.
-
 
 .. exception:: error
 
@@ -25,8 +29,8 @@ the Oracle Berkeley DB.
 .. function:: whichdb(filename)
 
    This function attempts to guess which of the several simple database modules
-   available --- :mod:`dbm.gnu`, :mod:`dbm.ndbm` or :mod:`dbm.dumb` --- should
-   be used to open a given file.
+   available --- :mod:`dbm.sqlite3`, :mod:`dbm.gnu`, :mod:`dbm.ndbm`,
+   or :mod:`dbm.dumb` --- should be used to open a given file.
 
    Return one of the following values:
 
@@ -140,6 +144,48 @@ then prints out the contents of the database::
 
 The individual submodules are described in the following sections.
 
+:mod:`dbm.sqlite3` --- SQLite backend for dbm
+---------------------------------------------
+
+.. module:: dbm.sqlite3
+   :platform: All
+   :synopsis: SQLite backend for dbm
+
+.. versionadded:: 3.13
+
+**Source code:** :source:`Lib/dbm/sqlite3.py`
+
+--------------
+
+This module uses the standard library :mod:`sqlite3` module to provide an
+SQLite backend for the :mod:`dbm` module.
+The files created by :mod:`dbm.sqlite3` can thus be opened by :mod:`sqlite3`,
+or any other SQLite browser, including the SQLite CLI.
+
+.. include:: ../includes/wasm-notavail.rst
+
+.. function:: open(filename, /, flag="r", mode=0o666)
+
+   Open an SQLite database.
+   The returned object behaves like a :term:`mapping`,
+   implements a :meth:`!close` method,
+   and supports a "closing" context manager via the :keyword:`with` keyword.
+
+   :param filename:
+      The path to the database to be opened.
+   :type filename: :term:`path-like object`
+
+   :param str flag:
+
+      * ``'r'`` (default): |flag_r|
+      * ``'w'``: |flag_w|
+      * ``'c'``: |flag_c|
+      * ``'n'``: |flag_n|
+
+   :param mode:
+      The Unix file access mode of the file (default: octal ``0o666``),
+      used only when the database has to be created.
+
 
 :mod:`dbm.gnu` --- GNU database manager
 ---------------------------------------
@@ -160,6 +206,8 @@ functionality like crash tolerance.
 
    The file formats created by :mod:`dbm.gnu` and :mod:`dbm.ndbm` are incompatible
    and can not be used interchangeably.
+
+.. include:: ../includes/wasm-mobile-notavail.rst
 
 .. exception:: error
 
@@ -245,6 +293,12 @@ functionality like crash tolerance.
 
       Close the GDBM database.
 
+   .. method:: gdbm.clear()
+
+      Remove all items from the GDBM database.
+
+      .. versionadded:: 3.13
+
 
 :mod:`dbm.ndbm` --- New Database Manager
 ----------------------------------------
@@ -273,6 +327,8 @@ This module can be used with the "classic" NDBM interface or the
    size of values, which can result in corrupted database files
    when storing values larger than this limit. Reading such corrupted files can
    result in a hard crash (segmentation fault).
+
+.. include:: ../includes/wasm-mobile-notavail.rst
 
 .. exception:: error
 
@@ -313,6 +369,12 @@ This module can be used with the "classic" NDBM interface or the
    .. method:: ndbm.close()
 
       Close the NDBM database.
+
+   .. method:: ndbm.clear()
+
+      Remove all items from the NDBM database.
+
+      .. versionadded:: 3.13
 
 
 :mod:`dbm.dumb` --- Portable DBM implementation
@@ -398,4 +460,3 @@ The :mod:`!dbm.dumb` module defines the following:
    .. method:: dumbdbm.close()
 
       Close the database.
-

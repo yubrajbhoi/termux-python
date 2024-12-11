@@ -363,6 +363,9 @@ attributes (see :ref:`import-mod-attrs` for module attributes):
       Functions wrapped in :func:`functools.partial` now return ``True`` if the
       wrapped function is a Python generator function.
 
+   .. versionchanged:: 3.13
+      Functions wrapped in :func:`functools.partialmethod` now return ``True``
+      if the wrapped function is a Python generator function.
 
 .. function:: isgenerator(object)
 
@@ -385,6 +388,10 @@ attributes (see :ref:`import-mod-attrs` for module attributes):
    .. versionchanged:: 3.12
       Sync functions marked with :func:`markcoroutinefunction` now return
       ``True``.
+
+   .. versionchanged:: 3.13
+      Functions wrapped in :func:`functools.partialmethod` now return ``True``
+      if the wrapped function is a :term:`coroutine function`.
 
 
 .. function:: markcoroutinefunction(func)
@@ -452,6 +459,9 @@ attributes (see :ref:`import-mod-attrs` for module attributes):
       Functions wrapped in :func:`functools.partial` now return ``True`` if the
       wrapped function is an :term:`asynchronous generator` function.
 
+   .. versionchanged:: 3.13
+      Functions wrapped in :func:`functools.partialmethod` now return ``True``
+      if the wrapped function is a :term:`coroutine function`.
 
 .. function:: isasyncgen(object)
 
@@ -507,16 +517,21 @@ attributes (see :ref:`import-mod-attrs` for module attributes):
    are true.
 
    This, for example, is true of ``int.__add__``.  An object passing this test
-   has a :meth:`~object.__get__` method but not a :meth:`~object.__set__`
-   method, but beyond that the set of attributes varies.  A
-   :attr:`~definition.__name__` attribute is usually
-   sensible, and :attr:`!__doc__` often is.
+   has a :meth:`~object.__get__` method, but not a :meth:`~object.__set__`
+   method or a :meth:`~object.__delete__` method.  Beyond that, the set of
+   attributes varies.  A :attr:`~definition.__name__` attribute is usually
+   sensible, and :attr:`~definition.__doc__` often is.
 
    Methods implemented via descriptors that also pass one of the other tests
    return ``False`` from the :func:`ismethoddescriptor` test, simply because the
    other tests promise more -- you can, e.g., count on having the
    :attr:`~method.__func__` attribute (etc) when an object passes
    :func:`ismethod`.
+
+   .. versionchanged:: 3.13
+      This function no longer incorrectly reports objects with :meth:`~object.__get__`
+      and :meth:`~object.__delete__`, but not :meth:`~object.__set__`, as being method
+      descriptors (such objects are data descriptors, not method descriptors).
 
 
 .. function:: isdatadescriptor(object)
@@ -736,8 +751,8 @@ function.
    The optional *return_annotation* argument can be an arbitrary Python object.
    It represents the "return" annotation of the callable.
 
-   :class:`!Signature` objects are *immutable*.  Use :meth:`Signature.replace` to make a
-   modified copy.
+   :class:`!Signature` objects are *immutable*.  Use :meth:`Signature.replace` or
+   :func:`copy.replace` to make a modified copy.
 
    .. versionchanged:: 3.5
       :class:`!Signature` objects are now picklable and :term:`hashable`.
@@ -795,6 +810,20 @@ function.
          >>> str(new_sig)
          "(a, b) -> 'new return anno'"
 
+      :class:`Signature` objects are also supported by the generic function
+      :func:`copy.replace`.
+
+   .. method:: format(*, max_width=None)
+
+      Create a string representation of the :class:`Signature` object.
+
+      If *max_width* is passed, the method will attempt to fit
+      the signature into lines of at most *max_width* characters.
+      If the signature is longer than *max_width*,
+      all parameters will be on separate lines.
+
+      .. versionadded:: 3.13
+
    .. classmethod:: Signature.from_callable(obj, *, follow_wrapped=True, globals=None, locals=None, eval_str=False)
 
        Return a :class:`Signature` (or its subclass) object for a given callable
@@ -821,7 +850,7 @@ function.
 
    :class:`!Parameter` objects are *immutable*.
    Instead of modifying a :class:`!Parameter` object,
-   you can use :meth:`Parameter.replace` to create a modified copy.
+   you can use :meth:`Parameter.replace` or :func:`copy.replace` to create a modified copy.
 
    .. versionchanged:: 3.5
       Parameter objects are now picklable and :term:`hashable`.
@@ -948,6 +977,9 @@ function.
          >>> str(param.replace(default=Parameter.empty, annotation='spam'))
          "foo: 'spam'"
 
+      :class:`Parameter` objects are also supported by the generic function
+      :func:`copy.replace`.
+
    .. versionchanged:: 3.4
       In Python 3.3 :class:`Parameter` objects were allowed to have ``name`` set
       to ``None`` if their ``kind`` was set to ``POSITIONAL_ONLY``.
@@ -986,7 +1018,8 @@ function.
    .. attribute:: BoundArguments.kwargs
 
       A dict of keyword arguments values.  Dynamically computed from the
-      :attr:`arguments` attribute.
+      :attr:`arguments` attribute.  Arguments that can be passed positionally
+      are included in :attr:`args` instead.
 
    .. attribute:: BoundArguments.signature
 
@@ -1204,7 +1237,7 @@ Classes and functions
    This function handles several details for you:
 
    * If ``eval_str`` is true, values of type ``str`` will
-     be un-stringized using :func:`eval()`.  This is intended
+     be un-stringized using :func:`eval`.  This is intended
      for use with stringized annotations
      (``from __future__ import annotations``).
    * If ``obj`` doesn't have an annotations dict, returns an
@@ -1218,16 +1251,16 @@ Classes and functions
    * Always, always, always returns a freshly created dict.
 
    ``eval_str`` controls whether or not values of type ``str`` are replaced
-   with the result of calling :func:`eval()` on those values:
+   with the result of calling :func:`eval` on those values:
 
-   * If eval_str is true, :func:`eval()` is called on values of type ``str``.
-     (Note that ``get_annotations`` doesn't catch exceptions; if :func:`eval()`
+   * If eval_str is true, :func:`eval` is called on values of type ``str``.
+     (Note that ``get_annotations`` doesn't catch exceptions; if :func:`eval`
      raises an exception, it will unwind the stack past the ``get_annotations``
      call.)
    * If eval_str is false (the default), values of type ``str`` are unchanged.
 
-   ``globals`` and ``locals`` are passed in to :func:`eval()`; see the documentation
-   for :func:`eval()` for more information.  If ``globals`` or ``locals``
+   ``globals`` and ``locals`` are passed in to :func:`eval`; see the documentation
+   for :func:`eval` for more information.  If ``globals`` or ``locals``
    is ``None``, this function may replace that value with a context-specific
    default, contingent on ``type(obj)``:
 

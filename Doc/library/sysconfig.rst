@@ -9,7 +9,7 @@
 
 .. versionadded:: 3.2
 
-**Source code:** :source:`Lib/sysconfig.py`
+**Source code:** :source:`Lib/sysconfig`
 
 .. index::
    single: configuration information
@@ -305,7 +305,7 @@ Installation path functions
    mix with those by the other.
 
    End users should not use this function, but :func:`get_default_scheme` and
-   :func:`get_preferred_scheme()` instead.
+   :func:`get_preferred_scheme` instead.
 
    .. versionadded:: 3.10
 

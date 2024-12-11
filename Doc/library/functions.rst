@@ -161,7 +161,7 @@ are always available.  They are listed here in alphabetical order.
    This function drops you into the debugger at the call site.  Specifically,
    it calls :func:`sys.breakpointhook`, passing ``args`` and ``kws`` straight
    through.  By default, ``sys.breakpointhook()`` calls
-   :func:`pdb.set_trace()` expecting no arguments.  In this case, it is
+   :func:`pdb.set_trace` expecting no arguments.  In this case, it is
    purely a convenience function so you don't have to explicitly import
    :mod:`pdb` or type as much code to enter the debugger.  However,
    :func:`sys.breakpointhook` can be set to some other function and
@@ -283,11 +283,13 @@ are always available.  They are listed here in alphabetical order.
       :func:`property`.
 
    .. versionchanged:: 3.10
-      Class methods now inherit the method attributes (``__module__``,
-      ``__name__``, ``__qualname__``, ``__doc__`` and ``__annotations__``) and
-      have a new ``__wrapped__`` attribute.
+      Class methods now inherit the method attributes
+      (:attr:`~function.__module__`, :attr:`~function.__name__`,
+      :attr:`~function.__qualname__`, :attr:`~function.__doc__` and
+      :attr:`~function.__annotations__`) and have a new ``__wrapped__``
+      attribute.
 
-   .. versionchanged:: 3.11
+   .. deprecated-removed:: 3.11 3.13
       Class methods can no longer wrap other :term:`descriptors <descriptor>` such as
       :func:`property`.
 
@@ -569,11 +571,11 @@ are always available.  They are listed here in alphabetical order.
 
 .. _func-eval:
 
-.. function:: eval(expression, globals=None, locals=None)
+.. function:: eval(source, /, globals=None, locals=None)
 
-   :param expression:
+   :param source:
       A Python expression.
-   :type expression: :class:`str` | :ref:`code object <code-objects>`
+   :type source: :class:`str` | :ref:`code object <code-objects>`
 
    :param globals:
       The global namespace (default: ``None``).
@@ -586,20 +588,26 @@ are always available.  They are listed here in alphabetical order.
    :returns: The result of the evaluated expression.
    :raises: Syntax errors are reported as exceptions.
 
+   .. warning::
+
+      This function executes arbitrary code. Calling it with
+      user-supplied input may lead to security vulnerabilities.
+
    The *expression* argument is parsed and evaluated as a Python expression
    (technically speaking, a condition list) using the *globals* and *locals*
-   dictionaries as global and local namespace.  If the *globals* dictionary is
+   mappings as global and local namespace.  If the *globals* dictionary is
    present and does not contain a value for the key ``__builtins__``, a
    reference to the dictionary of the built-in module :mod:`builtins` is
    inserted under that key before *expression* is parsed.  That way you can
    control what builtins are available to the executed code by inserting your
    own ``__builtins__`` dictionary into *globals* before passing it to
-   :func:`eval`.  If the *locals* dictionary is omitted it defaults to the
-   *globals* dictionary.  If both dictionaries are omitted, the expression is
+   :func:`eval`.  If the *locals* mapping is omitted it defaults to the
+   *globals* dictionary.  If both mappings are omitted, the expression is
    executed with the *globals* and *locals* in the environment where
-   :func:`eval` is called.  Note, *eval()* does not have access to the
+   :func:`eval` is called.  Note, *eval()* will only have access to the
    :term:`nested scopes <nested scope>` (non-locals) in the enclosing
-   environment.
+   environment if they are already referenced in the scope that is calling
+   :func:`eval` (e.g. via a :keyword:`nonlocal` statement).
 
    Example:
 
@@ -628,11 +636,25 @@ are always available.  They are listed here in alphabetical order.
       Raises an :ref:`auditing event <auditing>` ``exec`` with the code object
       as the argument. Code compilation events may also be raised.
 
+   .. versionchanged:: 3.13
+
+      The *globals* and *locals* arguments can now be passed as keywords.
+
+   .. versionchanged:: 3.13
+
+      The semantics of the default *locals* namespace have been adjusted as
+      described for the :func:`locals` builtin.
+
 .. index:: pair: built-in function; exec
 
-.. function:: exec(object, globals=None, locals=None, /, *, closure=None)
+.. function:: exec(source, /, globals=None, locals=None, *, closure=None)
 
-   This function supports dynamic execution of Python code. *object* must be
+   .. warning::
+
+      This function executes arbitrary code. Calling it with
+      user-supplied input may lead to security vulnerabilities.
+
+   This function supports dynamic execution of Python code. *source* must be
    either a string or a code object.  If it is a string, the string is parsed as
    a suite of Python statements which is then executed (unless a syntax error
    occurs). [#]_ If it is a code object, it is simply executed.  In all cases,
@@ -653,9 +675,11 @@ are always available.  They are listed here in alphabetical order.
 
    .. note::
 
-      Most users should just pass a *globals* argument and never *locals*.
-      If exec gets two separate objects as *globals* and *locals*, the code
-      will be executed as if it were embedded in a class definition.
+      When ``exec`` gets two separate objects as *globals* and *locals*, the
+      code will be executed as if it were embedded in a class definition. This
+      means functions and classes defined in the executed code will not be able
+      to access variables assigned at the top level (as the "top level"
+      variables are treated as class variables in a class definition).
 
    If the *globals* dictionary does not contain a value for the key
    ``__builtins__``, a reference to the dictionary of the built-in module
@@ -664,9 +688,10 @@ are always available.  They are listed here in alphabetical order.
    ``__builtins__`` dictionary into *globals* before passing it to :func:`exec`.
 
    The *closure* argument specifies a closure--a tuple of cellvars.
-   It's only valid when the *object* is a code object containing free variables.
-   The length of the tuple must exactly match the number of free variables
-   referenced by the code object.
+   It's only valid when the *object* is a code object containing
+   :term:`free (closure) variables <closure variable>`.
+   The length of the tuple must exactly match the length of the code object's
+   :attr:`~codeobject.co_freevars` attribute.
 
    .. audit-event:: exec code_object exec
 
@@ -676,18 +701,26 @@ are always available.  They are listed here in alphabetical order.
    .. note::
 
       The built-in functions :func:`globals` and :func:`locals` return the current
-      global and local dictionary, respectively, which may be useful to pass around
+      global and local namespace, respectively, which may be useful to pass around
       for use as the second and third argument to :func:`exec`.
 
    .. note::
 
-      The default *locals* act as described for function :func:`locals` below:
-      modifications to the default *locals* dictionary should not be attempted.
+      The default *locals* act as described for function :func:`locals` below.
       Pass an explicit *locals* dictionary if you need to see effects of the
       code on *locals* after function :func:`exec` returns.
 
    .. versionchanged:: 3.11
       Added the *closure* parameter.
+
+   .. versionchanged:: 3.13
+
+      The *globals* and *locals* arguments can now be passed as keywords.
+
+   .. versionchanged:: 3.13
+
+      The semantics of the default *locals* namespace have been adjusted as
+      described for the :func:`locals` builtin.
 
 
 .. function:: filter(function, iterable)
@@ -1114,14 +1147,56 @@ are always available.  They are listed here in alphabetical order.
 
 .. function:: locals()
 
-   Update and return a dictionary representing the current local symbol table.
-   Free variables are returned by :func:`locals` when it is called in function
-   blocks, but not in class blocks. Note that at the module level, :func:`locals`
-   and :func:`globals` are the same dictionary.
+    Return a mapping object representing the current local symbol table, with
+    variable names as the keys, and their currently bound references as the
+    values.
 
-   .. note::
-      The contents of this dictionary should not be modified; changes may not
-      affect the values of local and free variables used by the interpreter.
+    At module scope, as well as when using :func:`exec` or :func:`eval` with
+    a single namespace, this function returns the same namespace as
+    :func:`globals`.
+
+    At class scope, it returns the namespace that will be passed to the
+    metaclass constructor.
+
+    When using ``exec()`` or ``eval()`` with separate local and global
+    arguments, it returns the local namespace passed in to the function call.
+
+    In all of the above cases, each call to ``locals()`` in a given frame of
+    execution will return the *same* mapping object. Changes made through
+    the mapping object returned from ``locals()`` will be visible as assigned,
+    reassigned, or deleted local variables, and assigning, reassigning, or
+    deleting local variables will immediately affect the contents of the
+    returned mapping object.
+
+    In an :term:`optimized scope` (including functions, generators, and
+    coroutines), each call to ``locals()`` instead returns a fresh dictionary
+    containing the current bindings of the function's local variables and any
+    nonlocal cell references. In this case, name binding changes made via the
+    returned dict are *not* written back to the corresponding local variables
+    or nonlocal cell references, and assigning, reassigning, or deleting local
+    variables and nonlocal cell references does *not* affect the contents
+    of previously returned dictionaries.
+
+    Calling ``locals()`` as part of a comprehension in a function, generator, or
+    coroutine is equivalent to calling it in the containing scope, except that
+    the comprehension's initialised iteration variables will be included. In
+    other scopes, it behaves as if the comprehension were running as a nested
+    function.
+
+    Calling ``locals()`` as part of a generator expression is equivalent to
+    calling it in a nested generator function.
+
+   .. versionchanged:: 3.12
+      The behaviour of ``locals()`` in a comprehension has been updated as
+      described in :pep:`709`.
+
+   .. versionchanged:: 3.13
+      As part of :pep:`667`, the semantics of mutating the mapping objects
+      returned from this function are now defined. The behavior in
+      :term:`optimized scopes <optimized scope>` is now as described above.
+      Aside from being defined, the behaviour in other scopes remains
+      unchanged from previous versions.
+
 
 .. function:: map(function, iterable, *iterables)
 
@@ -1211,14 +1286,16 @@ are always available.  They are listed here in alphabetical order.
 
 .. class:: object()
 
-   Return a new featureless object.  :class:`object` is a base for all classes.
-   It has methods that are common to all instances of Python classes.  This
-   function does not accept any arguments.
+   This is the ultimate base class of all other classes. It has methods
+   that are common to all instances of Python classes. When the constructor
+   is called, it returns a new featureless object. The constructor does not
+   accept any arguments.
 
    .. note::
 
-      :class:`object` does *not* have a :attr:`~object.__dict__`, so you can't
-      assign arbitrary attributes to an instance of the :class:`object` class.
+      :class:`object` instances do *not* have :attr:`~object.__dict__`
+      attributes, so you can't assign arbitrary attributes to an instance of
+      :class:`object`.
 
 
 .. function:: oct(x)
@@ -1267,7 +1344,7 @@ are always available.  They are listed here in alphabetical order.
    (which on *some* Unix systems, means that *all* writes append to the end of
    the file regardless of the current seek position).  In text mode, if
    *encoding* is not specified the encoding used is platform-dependent:
-   :func:`locale.getencoding()` is called to get the current locale encoding.
+   :func:`locale.getencoding` is called to get the current locale encoding.
    (For reading and writing raw bytes use binary mode and leave
    *encoding* unspecified.)  The available modes are:
 
@@ -1631,6 +1708,13 @@ are always available.  They are listed here in alphabetical order.
    .. versionchanged:: 3.5
       The docstrings of property objects are now writeable.
 
+   .. attribute:: __name__
+
+      Attribute holding the name of the property. The name of the property
+      can be changed at runtime.
+
+      .. versionadded:: 3.13
+
 
 .. _func-range:
 .. class:: range(stop)
@@ -1831,10 +1915,11 @@ are always available.  They are listed here in alphabetical order.
    For more information on static methods, see :ref:`types`.
 
    .. versionchanged:: 3.10
-      Static methods now inherit the method attributes (``__module__``,
-      ``__name__``, ``__qualname__``, ``__doc__`` and ``__annotations__``),
-      have a new ``__wrapped__`` attribute, and are now callable as regular
-      functions.
+      Static methods now inherit the method attributes
+      (:attr:`~function.__module__`, :attr:`~function.__name__`,
+      :attr:`~function.__qualname__`, :attr:`~function.__doc__` and
+      :attr:`~function.__annotations__`), have a new ``__wrapped__`` attribute,
+      and are now callable as regular functions.
 
 
 .. index::
@@ -1867,7 +1952,7 @@ are always available.  They are listed here in alphabetical order.
       The *start* parameter can be specified as a keyword argument.
 
    .. versionchanged:: 3.12 Summation of floats switched to an algorithm
-      that gives higher accuracy on most builds.
+      that gives higher accuracy and better commutativity on most builds.
 
 
 .. class:: super()
@@ -1881,19 +1966,26 @@ are always available.  They are listed here in alphabetical order.
    to be searched.  The search starts from the class right after the
    *type*.
 
-   For example, if :attr:`~class.__mro__` of *object_or_type* is
+   For example, if :attr:`~type.__mro__` of *object_or_type* is
    ``D -> B -> C -> A -> object`` and the value of *type* is ``B``,
    then :func:`super` searches ``C -> A -> object``.
 
-   The :attr:`~class.__mro__` attribute of the *object_or_type* lists the method
-   resolution search order used by both :func:`getattr` and :func:`super`.  The
-   attribute is dynamic and can change whenever the inheritance hierarchy is
-   updated.
+   The :attr:`~type.__mro__` attribute of the class corresponding to
+   *object_or_type* lists the method resolution search order used by both
+   :func:`getattr` and :func:`super`.  The attribute is dynamic and can change
+   whenever the inheritance hierarchy is updated.
 
    If the second argument is omitted, the super object returned is unbound.  If
    the second argument is an object, ``isinstance(obj, type)`` must be true.  If
    the second argument is a type, ``issubclass(type2, type)`` must be true (this
    is useful for classmethods).
+
+   When called directly within an ordinary method of a class, both arguments may
+   be omitted ("zero-argument :func:`!super`"). In this case, *type* will be the
+   enclosing class, and *obj* will be the first argument of the immediately
+   enclosing function (typically ``self``). (This means that zero-argument
+   :func:`!super` will not work as expected within nested functions, including
+   generator expressions, which implicitly create nested functions.)
 
    There are two typical use cases for *super*.  In a class hierarchy with
    single inheritance, *super* can be used to refer to parent classes without
@@ -1957,28 +2049,30 @@ are always available.  They are listed here in alphabetical order.
 
    With one argument, return the type of an *object*.  The return value is a
    type object and generally the same object as returned by
-   :attr:`object.__class__ <instance.__class__>`.
+   :attr:`object.__class__`.
 
    The :func:`isinstance` built-in function is recommended for testing the type
    of an object, because it takes subclasses into account.
 
-
    With three arguments, return a new type object.  This is essentially a
    dynamic form of the :keyword:`class` statement. The *name* string is
-   the class name and becomes the :attr:`~definition.__name__` attribute.
+   the class name and becomes the :attr:`~type.__name__` attribute.
    The *bases* tuple contains the base classes and becomes the
-   :attr:`~class.__bases__` attribute; if empty, :class:`object`, the
+   :attr:`~type.__bases__` attribute; if empty, :class:`object`, the
    ultimate base of all classes, is added.  The *dict* dictionary contains
    attribute and method definitions for the class body; it may be copied
-   or wrapped before becoming the :attr:`~object.__dict__` attribute.
-   The following two statements create identical :class:`type` objects:
+   or wrapped before becoming the :attr:`~type.__dict__` attribute.
+   The following two statements create identical :class:`!type` objects:
 
       >>> class X:
       ...     a = 1
       ...
       >>> X = type('X', (), dict(a=1))
 
-   See also :ref:`bltin-type-objects`.
+   See also:
+
+   * :ref:`Documentation on attributes and methods on classes <class-attrs-and-methods>`.
+   * :ref:`bltin-type-objects`
 
    Keyword arguments provided to the three argument form are passed to the
    appropriate metaclass machinery (usually :meth:`~object.__init_subclass__`)
@@ -1988,27 +2082,31 @@ are always available.  They are listed here in alphabetical order.
    See also :ref:`class-customization`.
 
    .. versionchanged:: 3.6
-      Subclasses of :class:`type` which don't override ``type.__new__`` may no
+      Subclasses of :class:`!type` which don't override ``type.__new__`` may no
       longer use the one-argument form to get the type of an object.
 
 .. function:: vars()
               vars(object)
 
    Return the :attr:`~object.__dict__` attribute for a module, class, instance,
-   or any other object with a :attr:`~object.__dict__` attribute.
+   or any other object with a :attr:`!__dict__` attribute.
 
    Objects such as modules and instances have an updateable :attr:`~object.__dict__`
    attribute; however, other objects may have write restrictions on their
-   :attr:`~object.__dict__` attributes (for example, classes use a
+   :attr:`!__dict__` attributes (for example, classes use a
    :class:`types.MappingProxyType` to prevent direct dictionary updates).
 
-   Without an argument, :func:`vars` acts like :func:`locals`.  Note, the
-   locals dictionary is only useful for reads since updates to the locals
-   dictionary are ignored.
+   Without an argument, :func:`vars` acts like :func:`locals`.
 
    A :exc:`TypeError` exception is raised if an object is specified but
    it doesn't have a :attr:`~object.__dict__` attribute (for example, if
    its class defines the :attr:`~object.__slots__` attribute).
+
+   .. versionchanged:: 3.13
+
+      The result of calling this function without an argument has been
+      updated as described for the :func:`locals` builtin.
+
 
 .. function:: zip(*iterables, strict=False)
 

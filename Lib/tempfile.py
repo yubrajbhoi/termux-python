@@ -170,7 +170,7 @@ def _candidate_tempdir_list():
                          _os.path.expandvars(r'%SYSTEMROOT%\Temp'),
                          r'c:\temp', r'c:\tmp', r'\temp', r'\tmp' ])
     else:
-        dirlist.extend([ '/data/data/com.termux/files/usr/tmp' ])
+        dirlist.extend([ '/tmp', '/var/tmp', '/usr/tmp' ])
 
     # As a last resort, the current directory.
     try:
@@ -273,7 +273,7 @@ def _dont_follow_symlinks(func, path, *args):
     # Pass follow_symlinks=False, unless not supported on this platform.
     if func in _os.supports_follow_symlinks:
         func(path, *args, follow_symlinks=False)
-    elif _os.name == 'nt' or not _os.path.islink(path):
+    elif not _os.path.islink(path):
         func(path, *args)
 
 def _resetperms(path):

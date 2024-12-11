@@ -1,3 +1,4 @@
+import datetime
 import os
 import sys
 import contextlib
@@ -12,6 +13,7 @@ import re
 import stat
 import tempfile
 import test.support
+import time
 import types
 import typing
 import unittest
@@ -29,7 +31,7 @@ from test.support import os_helper
 from test.support.script_helper import (assert_python_ok,
                                         assert_python_failure, spawn_python)
 from test.support import threading_helper
-from test.support import (reap_children, captured_output, captured_stdout,
+from test.support import (reap_children, captured_stdout,
                           captured_stderr, is_emscripten, is_wasi,
                           requires_docstrings, MISSING_C_DOCSTRINGS)
 from test.support.os_helper import (TESTFN, rmtree, unlink)
@@ -680,9 +682,8 @@ class PydocDocTest(unittest.TestCase):
         help_header = textwrap.dedent(help_header)
         expected_help_pattern = help_header + expected_text_pattern
 
-        with captured_output('stdout') as output, \
-             captured_output('stderr') as err, \
-             StringIO() as buf:
+        with captured_stdout() as output, captured_stderr() as err:
+            buf = StringIO()
             helper = pydoc.Helper(output=buf)
             helper.help(module)
             result = buf.getvalue().strip()
@@ -706,9 +707,8 @@ class PydocDocTest(unittest.TestCase):
 
         def run_pydoc_for_request(request, expected_text_part):
             """Helper function to run pydoc with its output redirected"""
-            with captured_output('stdout') as output, \
-                 captured_output('stderr') as err, \
-                 StringIO() as buf:
+            with captured_stdout() as output, captured_stderr() as err:
+                buf = StringIO()
                 helper = pydoc.Helper(output=buf)
                 helper.help(request)
                 result = buf.getvalue().strip()
@@ -741,6 +741,45 @@ class PydocDocTest(unittest.TestCase):
         # test for pydoc.Helper.help
         run_pydoc_for_request(pydoc.Helper.help, 'Help on function help in module pydoc:')
         # test for pydoc.Helper() instance skipped because it is always meant to be interactive
+
+    @unittest.skipIf(hasattr(sys, 'gettrace') and sys.gettrace(),
+                     'trace function introduces __locals__ unexpectedly')
+    @requires_docstrings
+    def test_help_output_pager(self):
+        def run_pydoc_pager(request, what, expected_first_line):
+            with (captured_stdout() as output,
+                  captured_stderr() as err,
+                  unittest.mock.patch('pydoc.pager') as pager_mock,
+                  self.subTest(repr(request))):
+                helper = pydoc.Helper()
+                helper.help(request)
+                self.assertEqual('', err.getvalue())
+                self.assertEqual('\n', output.getvalue())
+                pager_mock.assert_called_once()
+                result = clean_text(pager_mock.call_args.args[0])
+                self.assertEqual(result.splitlines()[0], expected_first_line)
+                self.assertEqual(pager_mock.call_args.args[1], f'Help on {what}')
+
+        run_pydoc_pager('%', 'EXPRESSIONS', 'Operator precedence')
+        run_pydoc_pager('True', 'bool object', 'Help on bool object:')
+        run_pydoc_pager(True, 'bool object', 'Help on bool object:')
+        run_pydoc_pager('assert', 'assert', 'The "assert" statement')
+        run_pydoc_pager('TYPES', 'TYPES', 'The standard type hierarchy')
+        run_pydoc_pager('pydoc.Helper.help', 'pydoc.Helper.help',
+                        'Help on function help in pydoc.Helper:')
+        run_pydoc_pager(pydoc.Helper.help, 'Helper.help',
+                        'Help on function help in module pydoc:')
+        run_pydoc_pager('str', 'str', 'Help on class str in module builtins:')
+        run_pydoc_pager(str, 'str', 'Help on class str in module builtins:')
+        run_pydoc_pager('str.upper', 'str.upper', 'Help on method_descriptor in str:')
+        run_pydoc_pager(str.upper, 'str.upper', 'Help on method_descriptor:')
+        run_pydoc_pager(str.__add__, 'str.__add__', 'Help on wrapper_descriptor:')
+        run_pydoc_pager(int.numerator, 'int.numerator',
+                        'Help on getset descriptor builtins.int.numerator:')
+        run_pydoc_pager(list[int], 'list',
+                        'Help on GenericAlias in module builtins:')
+        run_pydoc_pager('sys', 'sys', 'Help on built-in module sys:')
+        run_pydoc_pager(sys, 'sys', 'Help on built-in module sys:')
 
     def test_showtopic(self):
         with captured_stdout() as showtopic_io:
@@ -775,9 +814,8 @@ class PydocDocTest(unittest.TestCase):
         # Helper.showtopic should be redirected
         self.maxDiff = None
 
-        with captured_output('stdout') as output, \
-             captured_output('stderr') as err, \
-             StringIO() as buf:
+        with captured_stdout() as output, captured_stderr() as err:
+            buf = StringIO()
             helper = pydoc.Helper(output=buf)
             helper.showtopic('with')
             result = buf.getvalue().strip()
@@ -790,7 +828,7 @@ class PydocDocTest(unittest.TestCase):
     def test_lambda_with_return_annotation(self):
         func = lambda a, b, c: 1
         func.__annotations__ = {"return": int}
-        with captured_output('stdout') as help_io:
+        with captured_stdout() as help_io:
             pydoc.help(func)
         helptext = help_io.getvalue()
         self.assertIn("lambda (a, b, c) -> int", helptext)
@@ -798,7 +836,7 @@ class PydocDocTest(unittest.TestCase):
     def test_lambda_without_return_annotation(self):
         func = lambda a, b, c: 1
         func.__annotations__ = {"a": int, "b": int, "c": int}
-        with captured_output('stdout') as help_io:
+        with captured_stdout() as help_io:
             pydoc.help(func)
         helptext = help_io.getvalue()
         self.assertIn("lambda (a: int, b: int, c: int)", helptext)
@@ -806,7 +844,7 @@ class PydocDocTest(unittest.TestCase):
     def test_lambda_with_return_and_params_annotation(self):
         func = lambda a, b, c: 1
         func.__annotations__ = {"a": int, "b": int, "c": int, "return": int}
-        with captured_output('stdout') as help_io:
+        with captured_stdout() as help_io:
             pydoc.help(func)
         helptext = help_io.getvalue()
         self.assertIn("lambda (a: int, b: int, c: int) -> int", helptext)
@@ -869,14 +907,18 @@ class PydocDocTest(unittest.TestCase):
 
     def test_is_package_when_not_package(self):
         with os_helper.temp_cwd() as test_dir:
-            self.assertFalse(pydoc.ispackage(test_dir))
+            with self.assertWarns(DeprecationWarning) as cm:
+                self.assertFalse(pydoc.ispackage(test_dir))
+            self.assertEqual(cm.filename, __file__)
 
     def test_is_package_when_is_package(self):
         with os_helper.temp_cwd() as test_dir:
             init_path = os.path.join(test_dir, '__init__.py')
             open(init_path, 'w').close()
-            self.assertTrue(pydoc.ispackage(test_dir))
+            with self.assertWarns(DeprecationWarning) as cm:
+                self.assertTrue(pydoc.ispackage(test_dir))
             os.remove(init_path)
+            self.assertEqual(cm.filename, __file__)
 
     def test_allmethods(self):
         # issue 17476: allmethods was no longer returning unbound methods.
@@ -992,6 +1034,92 @@ class B(A)
         expected_lines = [line.strip() for line in expected_text.split("\n") if line]
         for expected_line in expected_lines:
             self.assertIn(expected_line, as_text)
+
+    def test_long_signatures(self):
+        from collections.abc import Callable
+        from typing import Literal, Annotated
+
+        class A:
+            def __init__(self,
+                         arg1: Callable[[int, int, int], str],
+                         arg2: Literal['some value', 'other value'],
+                         arg3: Annotated[int, 'some docs about this type'],
+                         ) -> None:
+                ...
+
+        doc = pydoc.render_doc(A)
+        doc = clean_text(doc)
+        self.assertEqual(doc, '''Python Library Documentation: class A in module %s
+
+class A(builtins.object)
+ |  A(
+ |      arg1: collections.abc.Callable[[int, int, int], str],
+ |      arg2: Literal['some value', 'other value'],
+ |      arg3: Annotated[int, 'some docs about this type']
+ |  ) -> None
+ |
+ |  Methods defined here:
+ |
+ |  __init__(
+ |      self,
+ |      arg1: collections.abc.Callable[[int, int, int], str],
+ |      arg2: Literal['some value', 'other value'],
+ |      arg3: Annotated[int, 'some docs about this type']
+ |  ) -> None
+ |
+ |  ----------------------------------------------------------------------
+ |  Data descriptors defined here:
+ |
+ |  __dict__%s
+ |
+ |  __weakref__%s
+''' % (__name__,
+       '' if MISSING_C_DOCSTRINGS else '\n |      dictionary for instance variables',
+       '' if MISSING_C_DOCSTRINGS else '\n |      list of weak references to the object',
+      ))
+
+        def func(
+            arg1: Callable[[Annotated[int, 'Some doc']], str],
+            arg2: Literal[1, 2, 3, 4, 5, 6, 7, 8],
+        ) -> Annotated[int, 'Some other']:
+            ...
+
+        doc = pydoc.render_doc(func)
+        doc = clean_text(doc)
+        self.assertEqual(doc, '''Python Library Documentation: function func in module %s
+
+func(
+    arg1: collections.abc.Callable[[typing.Annotated[int, 'Some doc']], str],
+    arg2: Literal[1, 2, 3, 4, 5, 6, 7, 8]
+) -> Annotated[int, 'Some other']
+''' % __name__)
+
+        def function_with_really_long_name_so_annotations_can_be_rather_small(
+            arg1: int,
+            arg2: str,
+        ):
+            ...
+
+        doc = pydoc.render_doc(function_with_really_long_name_so_annotations_can_be_rather_small)
+        doc = clean_text(doc)
+        self.assertEqual(doc, '''Python Library Documentation: function function_with_really_long_name_so_annotations_can_be_rather_small in module %s
+
+function_with_really_long_name_so_annotations_can_be_rather_small(
+    arg1: int,
+    arg2: str
+)
+''' % __name__)
+
+        does_not_have_name = lambda \
+            very_long_parameter_name_that_should_not_fit_into_a_single_line, \
+            second_very_long_parameter_name: ...
+
+        doc = pydoc.render_doc(does_not_have_name)
+        doc = clean_text(doc)
+        self.assertEqual(doc, '''Python Library Documentation: function <lambda> in module %s
+
+<lambda> lambda very_long_parameter_name_that_should_not_fit_into_a_single_line, second_very_long_parameter_name
+''' % __name__)
 
     def test__future__imports(self):
         # __future__ features are excluded from module help,
@@ -1169,6 +1297,17 @@ class PydocImportTest(PydocBaseTest):
             sys.modules['pydoc'] = pydoc
 
 
+class Rect:
+    @property
+    def area(self):
+        '''Area of the rect'''
+        return self.w * self.h
+
+
+class Square(Rect):
+    area = property(lambda self: self.side**2)
+
+
 class TestDescriptions(unittest.TestCase):
     def tearDown(self):
         self.assertIs(sys.modules['pydoc'], pydoc)
@@ -1313,6 +1452,20 @@ class TestDescriptions(unittest.TestCase):
         self.assertEqual(self._get_summary_line(os.stat),
             "stat(path, *, dir_fd=None, follow_symlinks=True)")
 
+    def test_module_level_callable_noargs(self):
+        self.assertEqual(self._get_summary_line(time.time),
+            "time()")
+
+    def test_module_level_callable_o(self):
+        try:
+            import _stat
+        except ImportError:
+            # stat.S_IMODE() and _stat.S_IMODE() have a different signature
+            self.skipTest('_stat extension is missing')
+
+        self.assertEqual(self._get_summary_line(_stat.S_IMODE),
+            "S_IMODE(object, /)")
+
     def test_unbound_builtin_method_noargs(self):
         self.assertEqual(self._get_summary_line(str.lower),
             "lower(self, /) unbound builtins.str method")
@@ -1320,6 +1473,136 @@ class TestDescriptions(unittest.TestCase):
     def test_bound_builtin_method_noargs(self):
         self.assertEqual(self._get_summary_line(''.lower),
             "lower() method of builtins.str instance")
+
+    def test_unbound_builtin_method_o(self):
+        self.assertEqual(self._get_summary_line(set.add),
+            "add(self, object, /) unbound builtins.set method")
+
+    def test_bound_builtin_method_o(self):
+        self.assertEqual(self._get_summary_line(set().add),
+            "add(object, /) method of builtins.set instance")
+
+    def test_unbound_builtin_method_coexist_o(self):
+        self.assertEqual(self._get_summary_line(set.__contains__),
+            "__contains__(self, object, /) unbound builtins.set method")
+
+    def test_bound_builtin_method_coexist_o(self):
+        self.assertEqual(self._get_summary_line(set().__contains__),
+            "__contains__(object, /) method of builtins.set instance")
+
+    def test_unbound_builtin_classmethod_noargs(self):
+        self.assertEqual(self._get_summary_line(datetime.datetime.__dict__['utcnow']),
+            "utcnow(type, /) unbound datetime.datetime method")
+
+    def test_bound_builtin_classmethod_noargs(self):
+        self.assertEqual(self._get_summary_line(datetime.datetime.utcnow),
+            "utcnow() class method of datetime.datetime")
+
+    def test_unbound_builtin_classmethod_o(self):
+        self.assertEqual(self._get_summary_line(dict.__dict__['__class_getitem__']),
+            "__class_getitem__(type, object, /) unbound builtins.dict method")
+
+    def test_bound_builtin_classmethod_o(self):
+        self.assertEqual(self._get_summary_line(dict.__class_getitem__),
+            "__class_getitem__(object, /) class method of builtins.dict")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_module_level_callable_unrepresentable_default(self):
+        _testcapi = import_helper.import_module("_testcapi")
+        builtin = _testcapi.func_with_unrepresentable_signature
+        self.assertEqual(self._get_summary_line(builtin),
+            "func_with_unrepresentable_signature(a, b=<x>)")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_builtin_staticmethod_unrepresentable_default(self):
+        self.assertEqual(self._get_summary_line(str.maketrans),
+            "maketrans(x, y=<unrepresentable>, z=<unrepresentable>, /)")
+        _testcapi = import_helper.import_module("_testcapi")
+        cls = _testcapi.DocStringUnrepresentableSignatureTest
+        self.assertEqual(self._get_summary_line(cls.staticmeth),
+            "staticmeth(a, b=<x>)")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_unbound_builtin_method_unrepresentable_default(self):
+        self.assertEqual(self._get_summary_line(dict.pop),
+            "pop(self, key, default=<unrepresentable>, /) "
+            "unbound builtins.dict method")
+        _testcapi = import_helper.import_module("_testcapi")
+        cls = _testcapi.DocStringUnrepresentableSignatureTest
+        self.assertEqual(self._get_summary_line(cls.meth),
+            "meth(self, /, a, b=<x>) unbound "
+            "_testcapi.DocStringUnrepresentableSignatureTest method")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_bound_builtin_method_unrepresentable_default(self):
+        self.assertEqual(self._get_summary_line({}.pop),
+            "pop(key, default=<unrepresentable>, /) "
+            "method of builtins.dict instance")
+        _testcapi = import_helper.import_module("_testcapi")
+        obj = _testcapi.DocStringUnrepresentableSignatureTest()
+        self.assertEqual(self._get_summary_line(obj.meth),
+            "meth(a, b=<x>) "
+            "method of _testcapi.DocStringUnrepresentableSignatureTest instance")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_unbound_builtin_classmethod_unrepresentable_default(self):
+        _testcapi = import_helper.import_module("_testcapi")
+        cls = _testcapi.DocStringUnrepresentableSignatureTest
+        descr = cls.__dict__['classmeth']
+        self.assertEqual(self._get_summary_line(descr),
+            "classmeth(type, /, a, b=<x>) unbound "
+            "_testcapi.DocStringUnrepresentableSignatureTest method")
+
+    @support.cpython_only
+    @requires_docstrings
+    def test_bound_builtin_classmethod_unrepresentable_default(self):
+        _testcapi = import_helper.import_module("_testcapi")
+        cls = _testcapi.DocStringUnrepresentableSignatureTest
+        self.assertEqual(self._get_summary_line(cls.classmeth),
+            "classmeth(a, b=<x>) class method of "
+            "_testcapi.DocStringUnrepresentableSignatureTest")
+
+    def test_overridden_text_signature(self):
+        class C:
+            def meth(*args, **kwargs):
+                pass
+            @classmethod
+            def cmeth(*args, **kwargs):
+                pass
+            @staticmethod
+            def smeth(*args, **kwargs):
+                pass
+        for text_signature, unbound, bound in [
+            ("($slf)", "(slf, /)", "()"),
+            ("($slf, /)", "(slf, /)", "()"),
+            ("($slf, /, arg)", "(slf, /, arg)", "(arg)"),
+            ("($slf, /, arg=<x>)", "(slf, /, arg=<x>)", "(arg=<x>)"),
+            ("($slf, arg, /)", "(slf, arg, /)", "(arg, /)"),
+            ("($slf, arg=<x>, /)", "(slf, arg=<x>, /)", "(arg=<x>, /)"),
+            ("(/, slf, arg)", "(/, slf, arg)", "(/, slf, arg)"),
+            ("(/, slf, arg=<x>)", "(/, slf, arg=<x>)", "(/, slf, arg=<x>)"),
+            ("(slf, /, arg)", "(slf, /, arg)", "(arg)"),
+            ("(slf, /, arg=<x>)", "(slf, /, arg=<x>)", "(arg=<x>)"),
+            ("(slf, arg, /)", "(slf, arg, /)", "(arg, /)"),
+            ("(slf, arg=<x>, /)", "(slf, arg=<x>, /)", "(arg=<x>, /)"),
+        ]:
+            with self.subTest(text_signature):
+                C.meth.__text_signature__ = text_signature
+                self.assertEqual(self._get_summary_line(C.meth),
+                        "meth" + unbound)
+                self.assertEqual(self._get_summary_line(C().meth),
+                        "meth" + bound + " method of test.test_pydoc.test_pydoc.C instance")
+                C.cmeth.__func__.__text_signature__ = text_signature
+                self.assertEqual(self._get_summary_line(C.cmeth),
+                        "cmeth" + bound + " class method of test.test_pydoc.test_pydoc.C")
+                C.smeth.__text_signature__ = text_signature
+                self.assertEqual(self._get_summary_line(C.smeth),
+                        "smeth" + unbound)
 
     @requires_docstrings
     def test_staticmethod(self):
@@ -1415,13 +1698,13 @@ cm(x) class method of test.test_pydoc.test_pydoc.X
 
     @requires_docstrings
     def test_property(self):
-        class Rect:
-            @property
-            def area(self):
-                '''Area of the rect'''
-                return self.w * self.h
-
         self.assertEqual(self._get_summary_lines(Rect.area), """\
+area
+    Area of the rect
+""")
+        # inherits the docstring from Rect.area
+        self.assertEqual(self._get_summary_lines(Square.area), """\
+area
     Area of the rect
 """)
         self.assertIn("""
@@ -1542,6 +1825,8 @@ class PydocFodderTest(unittest.TestCase):
         self.assertIn(' |  global_func(x, y) from test.test_pydoc.pydocfodder', lines)
         self.assertIn(' |  global_func_alias = global_func(x, y)', lines)
         self.assertIn(' |  global_func2_alias = global_func2(x, y) from test.test_pydoc.pydocfodder', lines)
+        self.assertIn(' |  count(self, value, /) from builtins.list', lines)
+        self.assertIn(' |  list_count = count(self, value, /)', lines)
         self.assertIn(' |  __repr__(self, /) from builtins.object', lines)
         self.assertIn(' |  object_repr = __repr__(self, /)', lines)
 
@@ -1570,6 +1855,8 @@ class PydocFodderTest(unittest.TestCase):
         self.assertIn('global_func(x, y) from test.test_pydoc.pydocfodder', lines)
         self.assertIn('global_func_alias = global_func(x, y)', lines)
         self.assertIn('global_func2_alias = global_func2(x, y) from test.test_pydoc.pydocfodder', lines)
+        self.assertIn('count(self, value, /) from builtins.list', lines)
+        self.assertIn('list_count = count(self, value, /)', lines)
         self.assertIn('__repr__(self, /) from builtins.object', lines)
         self.assertIn('object_repr = __repr__(self, /)', lines)
 
@@ -1613,6 +1900,10 @@ class PydocFodderTest(unittest.TestCase):
         # unbound methods
         self.assertIn('    B_method(self)', lines)
         self.assertIn('    B_method2 = B_method(self)', lines)
+        self.assertIn('    count(self, value, /) unbound builtins.list method', lines)
+        self.assertIn('    list_count = count(self, value, /) unbound builtins.list method', lines)
+        self.assertIn('    __repr__(self, /) unbound builtins.object method', lines)
+        self.assertIn('    object_repr = __repr__(self, /) unbound builtins.object method', lines)
 
     def test_html_doc_routines_in_module(self):
         doc = pydoc.HTMLDoc()
@@ -1638,6 +1929,10 @@ class PydocFodderTest(unittest.TestCase):
         # unbound methods
         self.assertIn(' B_method(self)', lines)
         self.assertIn(' B_method2 = B_method(self)', lines)
+        self.assertIn(' count(self, value, /) unbound builtins.list method', lines)
+        self.assertIn(' list_count = count(self, value, /) unbound builtins.list method', lines)
+        self.assertIn(' __repr__(self, /) unbound builtins.object method', lines)
+        self.assertIn(' object_repr = __repr__(self, /) unbound builtins.object method', lines)
 
 
 @unittest.skipIf(

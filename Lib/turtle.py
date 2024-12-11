@@ -104,7 +104,6 @@ import math
 import time
 import inspect
 import sys
-import warnings
 
 from os.path import isfile, split, join
 from copy import deepcopy
@@ -127,7 +126,7 @@ _tg_turtle_functions = ['back', 'backward', 'begin_fill', 'begin_poly', 'bk',
         'isvisible', 'left', 'lt', 'onclick', 'ondrag', 'onrelease', 'pd',
         'pen', 'pencolor', 'pendown', 'pensize', 'penup', 'pos', 'position',
         'pu', 'radians', 'right', 'reset', 'resizemode', 'rt',
-        'seth', 'setheading', 'setpos', 'setposition', 'settiltangle',
+        'seth', 'setheading', 'setpos', 'setposition',
         'setundobuffer', 'setx', 'sety', 'shape', 'shapesize', 'shapetransform', 'shearfactor', 'showturtle',
         'speed', 'st', 'stamp', 'teleport', 'tilt', 'tiltangle', 'towards',
         'turtlesize', 'undo', 'undobufferentries', 'up', 'width',
@@ -875,7 +874,7 @@ class Shape(object):
             if isinstance(data, str):
                 if data.lower().endswith(".gif") and isfile(data):
                     data = TurtleScreen._image(data)
-                # else data assumed to be Photoimage
+                # else data assumed to be PhotoImage
         elif type_ == "compound":
             data = []
         else:
@@ -1719,7 +1718,7 @@ class TNavigator(object):
         >>> reset()
         >>> turtle.left(60)
         >>> turtle.forward(100)
-        >>> print turtle.xcor()
+        >>> print(turtle.xcor())
         50.0
         """
         return self._position[0]
@@ -1733,7 +1732,7 @@ class TNavigator(object):
         >>> reset()
         >>> turtle.left(60)
         >>> turtle.forward(100)
-        >>> print turtle.ycor()
+        >>> print(turtle.ycor())
         86.6025403784
         """
         return self._position[1]
@@ -2336,7 +2335,7 @@ class TPen(object):
 
         Example (for a Turtle instance named turtle):
         >>> turtle.hideturtle()
-        >>> print turtle.isvisible():
+        >>> print(turtle.isvisible())
         False
         """
         return self._shown
@@ -2896,33 +2895,6 @@ class RawTurtle(TPen, TNavigator):
             return self._shearfactor
         self.pen(resizemode="user", shearfactor=shear)
 
-    def settiltangle(self, angle):
-        """Rotate the turtleshape to point in the specified direction
-
-        Argument: angle -- number
-
-        Rotate the turtleshape to point in the direction specified by angle,
-        regardless of its current tilt-angle. DO NOT change the turtle's
-        heading (direction of movement).
-
-        Deprecated since Python 3.1
-
-        Examples (for a Turtle instance named turtle):
-        >>> turtle.shape("circle")
-        >>> turtle.shapesize(5,2)
-        >>> turtle.settiltangle(45)
-        >>> turtle.stamp()
-        >>> turtle.fd(50)
-        >>> turtle.settiltangle(-45)
-        >>> turtle.stamp()
-        >>> turtle.fd(50)
-        """
-        warnings._deprecated("turtle.RawTurtle.settiltangle()",
-                             "{name!r} is deprecated since Python 3.1 and scheduled "
-                             "for removal in Python {remove}. Use tiltangle() instead.",
-                             remove=(3, 13))
-        self.tiltangle(angle)
-
     def tiltangle(self, angle=None):
         """Set or return the current tilt-angle.
 
@@ -2934,9 +2906,6 @@ class RawTurtle(TPen, TNavigator):
         If angle is not given: return the current tilt-angle, i. e. the angle
         between the orientation of the turtleshape and the heading of the
         turtle (its direction of movement).
-
-        (Incorrectly marked as deprecated since Python 3.1, it is really
-        settiltangle that is deprecated.)
 
         Examples (for a Turtle instance named turtle):
         >>> turtle.shape("circle")

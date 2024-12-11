@@ -3,25 +3,25 @@ Pending Removal in Python 3.13
 
 Modules (see :pep:`594`):
 
-* :mod:`aifc`
-* :mod:`audioop`
-* :mod:`cgi`
-* :mod:`cgitb`
-* :mod:`chunk`
-* :mod:`crypt`
-* :mod:`imghdr`
-* :mod:`mailcap`
-* :mod:`msilib`
-* :mod:`nis`
-* :mod:`nntplib`
-* :mod:`ossaudiodev`
-* :mod:`pipes`
-* :mod:`sndhdr`
-* :mod:`spwd`
-* :mod:`sunau`
-* :mod:`telnetlib`
-* :mod:`uu`
-* :mod:`xdrlib`
+* :mod:`!aifc`
+* :mod:`!audioop`
+* :mod:`!cgi`
+* :mod:`!cgitb`
+* :mod:`!chunk`
+* :mod:`!crypt`
+* :mod:`!imghdr`
+* :mod:`!mailcap`
+* :mod:`!msilib`
+* :mod:`!nis`
+* :mod:`!nntplib`
+* :mod:`!ossaudiodev`
+* :mod:`!pipes`
+* :mod:`!sndhdr`
+* :mod:`!spwd`
+* :mod:`!sunau`
+* :mod:`!telnetlib`
+* :mod:`!uu`
+* :mod:`!xdrlib`
 
 Other modules:
 
@@ -48,5 +48,5 @@ APIs:
   * ``read_binary()``
   * ``read_text()``
 
-  Use :func:`importlib.resources.files()` instead.  Refer to `importlib-resources: Migrating from Legacy
+  Use :func:`importlib.resources.files` instead.  Refer to `importlib-resources: Migrating from Legacy
   <https://importlib-resources.readthedocs.io/en/latest/using.html#migrating-from-legacy>`_ (:gh:`106531`)

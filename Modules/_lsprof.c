@@ -4,7 +4,10 @@
 
 #include "Python.h"
 #include "pycore_call.h"          // _PyObject_CallNoArgs()
+#include "pycore_ceval.h"         // _PyEval_SetProfile()
 #include "pycore_pystate.h"       // _PyThreadState_GET()
+#include "pycore_time.h"          // _PyTime_FromLong()
+
 #include "rotatingtree.h"
 
 /************************************************************/
@@ -15,8 +18,8 @@ struct _ProfilerEntry;
 /* represents a function called from another function */
 typedef struct _ProfilerSubEntry {
     rotating_node_t header;
-    _PyTime_t tt;
-    _PyTime_t it;
+    PyTime_t tt;
+    PyTime_t it;
     long callcount;
     long recursivecallcount;
     long recursionLevel;
@@ -26,8 +29,8 @@ typedef struct _ProfilerSubEntry {
 typedef struct _ProfilerEntry {
     rotating_node_t header;
     PyObject *userObj; /* PyCodeObject, or a descriptive str for builtins */
-    _PyTime_t tt; /* total time in this entry */
-    _PyTime_t it; /* inline time in this entry (not in subcalls) */
+    PyTime_t tt; /* total time in this entry */
+    PyTime_t it; /* inline time in this entry (not in subcalls) */
     long callcount; /* how many times this was called */
     long recursivecallcount; /* how many times called recursively */
     long recursionLevel;
@@ -35,8 +38,8 @@ typedef struct _ProfilerEntry {
 } ProfilerEntry;
 
 typedef struct _ProfilerContext {
-    _PyTime_t t0;
-    _PyTime_t subt;
+    PyTime_t t0;
+    PyTime_t subt;
     struct _ProfilerContext *previous;
     ProfilerEntry *ctxEntry;
 } ProfilerContext;
@@ -83,7 +86,7 @@ _lsprof_get_state(PyObject *module)
 
 /*** External Timers ***/
 
-static _PyTime_t CallExternalTimer(ProfilerObject *pObj)
+static PyTime_t CallExternalTimer(ProfilerObject *pObj)
 {
     PyObject *o = NULL;
 
@@ -98,16 +101,16 @@ static _PyTime_t CallExternalTimer(ProfilerObject *pObj)
         return 0;
     }
 
-    _PyTime_t result;
+    PyTime_t result;
     int err;
     if (pObj->externalTimerUnit > 0.0) {
         /* interpret the result as an integer that will be scaled
            in profiler_getstats() */
-        err = _PyTime_FromNanosecondsObject(&result, o);
+        err = _PyTime_FromLong(&result, o);
     }
     else {
         /* interpret the result as a double measured in seconds.
-           As the profiler works with _PyTime_t internally
+           As the profiler works with PyTime_t internally
            we convert it to a large integer */
         err = _PyTime_FromSecondsObject(&result, o, _PyTime_ROUND_FLOOR);
     }
@@ -119,14 +122,16 @@ static _PyTime_t CallExternalTimer(ProfilerObject *pObj)
     return result;
 }
 
-static inline _PyTime_t
+static inline PyTime_t
 call_timer(ProfilerObject *pObj)
 {
     if (pObj->externalTimer != NULL) {
         return CallExternalTimer(pObj);
     }
     else {
-        return _PyTime_GetPerfCounter();
+        PyTime_t t;
+        (void)PyTime_PerfCounterRaw(&t);
+        return t;
     }
 }
 
@@ -180,8 +185,7 @@ normalizeUserObj(PyObject *obj)
         PyObject *modname = fn->m_module;
 
         if (name != NULL) {
-            PyObject *mo = _PyType_Lookup(Py_TYPE(self), name);
-            Py_XINCREF(mo);
+            PyObject *mo = _PyType_LookupRef(Py_TYPE(self), name);
             Py_DECREF(name);
             if (mo != NULL) {
                 PyObject *res = PyObject_Repr(mo);
@@ -317,8 +321,8 @@ initContext(ProfilerObject *pObj, ProfilerContext *self, ProfilerEntry *entry)
 static void
 Stop(ProfilerObject *pObj, ProfilerContext *self, ProfilerEntry *entry)
 {
-    _PyTime_t tt = call_timer(pObj) - self->t0;
-    _PyTime_t it = tt - self->subt;
+    PyTime_t tt = call_timer(pObj) - self->t0;
+    PyTime_t it = tt - self->subt;
     if (self->previous)
         self->previous->subt += tt;
     pObj->currentProfilerContext = self->previous;
@@ -563,7 +567,7 @@ _lsprof_Profiler_getstats_impl(ProfilerObject *self, PyTypeObject *cls)
         return NULL;
     }
     if (!self->externalTimer || self->externalTimerUnit == 0.0) {
-        _PyTime_t onesec = _PyTime_FromSeconds(1);
+        PyTime_t onesec = _PyTime_FromSeconds(1);
         collect.factor = (double)1 / onesec;
     }
     else {
@@ -604,6 +608,12 @@ setBuiltins(ProfilerObject *pObj, int nvalue)
 
 PyObject* pystart_callback(ProfilerObject* self, PyObject *const *args, Py_ssize_t size)
 {
+    if (size < 2) {
+        PyErr_Format(PyExc_TypeError,
+                     "_pystart_callback expected 2 arguments, got %zd",
+                     size);
+        return NULL;
+    }
     PyObject* code = args[0];
     ptrace_enter_call((PyObject*)self, (void *)code, (PyObject *)code);
 
@@ -612,6 +622,12 @@ PyObject* pystart_callback(ProfilerObject* self, PyObject *const *args, Py_ssize
 
 PyObject* pyreturn_callback(ProfilerObject* self, PyObject *const *args, Py_ssize_t size)
 {
+    if (size < 3) {
+        PyErr_Format(PyExc_TypeError,
+                     "_pyreturn_callback expected 3 arguments, got %zd",
+                     size);
+        return NULL;
+    }
     PyObject* code = args[0];
     ptrace_leave_call((PyObject*)self, (void *)code);
 
@@ -647,6 +663,12 @@ PyObject* get_cfunc_from_callable(PyObject* callable, PyObject* self_arg, PyObje
 
 PyObject* ccall_callback(ProfilerObject* self, PyObject *const *args, Py_ssize_t size)
 {
+    if (size < 4) {
+        PyErr_Format(PyExc_TypeError,
+                     "_ccall_callback expected 4 arguments, got %zd",
+                     size);
+        return NULL;
+    }
     if (self->flags & POF_BUILTINS) {
         PyObject* callable = args[2];
         PyObject* self_arg = args[3];
@@ -665,6 +687,12 @@ PyObject* ccall_callback(ProfilerObject* self, PyObject *const *args, Py_ssize_t
 
 PyObject* creturn_callback(ProfilerObject* self, PyObject *const *args, Py_ssize_t size)
 {
+    if (size < 4) {
+        PyErr_Format(PyExc_TypeError,
+                     "_creturn_callback expected 4 arguments, got %zd",
+                     size);
+        return NULL;
+    }
     if (self->flags & POF_BUILTINS) {
         PyObject* callable = args[2];
         PyObject* self_arg = args[3];
@@ -726,34 +754,47 @@ profiler_enable(ProfilerObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    if (PyObject_CallMethod(monitoring, "use_tool_id", "is", self->tool_id, "cProfile") == NULL) {
+    PyObject *check = PyObject_CallMethod(monitoring,
+                                          "use_tool_id", "is",
+                                          self->tool_id, "cProfile");
+    if (check == NULL) {
         PyErr_Format(PyExc_ValueError, "Another profiling tool is already active");
-        Py_DECREF(monitoring);
-        return NULL;
+        goto error;
     }
+    Py_DECREF(check);
 
     for (int i = 0; callback_table[i].callback_method; i++) {
+        int event = (1 << callback_table[i].event);
         PyObject* callback = PyObject_GetAttrString((PyObject*)self, callback_table[i].callback_method);
         if (!callback) {
-            Py_DECREF(monitoring);
-            return NULL;
+            goto error;
         }
-        Py_XDECREF(PyObject_CallMethod(monitoring, "register_callback", "iiO", self->tool_id,
-                                       (1 << callback_table[i].event),
-                                       callback));
+        PyObject *register_result = PyObject_CallMethod(monitoring, "register_callback",
+                                                        "iiO", self->tool_id,
+                                                        event, callback);
         Py_DECREF(callback);
-        all_events |= (1 << callback_table[i].event);
+        if (register_result == NULL) {
+            goto error;
+        }
+        Py_DECREF(register_result);
+        all_events |= event;
     }
 
-    if (!PyObject_CallMethod(monitoring, "set_events", "ii", self->tool_id, all_events)) {
-        Py_DECREF(monitoring);
-        return NULL;
+    PyObject *event_result = PyObject_CallMethod(monitoring, "set_events", "ii",
+                                                 self->tool_id, all_events);
+    if (event_result == NULL) {
+        goto error;
     }
 
+    Py_DECREF(event_result);
     Py_DECREF(monitoring);
 
     self->flags |= POF_ENABLED;
     Py_RETURN_NONE;
+
+error:
+    Py_DECREF(monitoring);
+    return NULL;
 }
 
 static void
@@ -863,7 +904,7 @@ profiler_dealloc(ProfilerObject *op)
     if (op->flags & POF_ENABLED) {
         PyThreadState *tstate = _PyThreadState_GET();
         if (_PyEval_SetProfile(tstate, NULL, NULL) < 0) {
-            _PyErr_WriteUnraisableMsg("When destroying _lsprof profiler", NULL);
+            PyErr_FormatUnraisable("Exception ignored when destroying _lsprof profiler");
         }
     }
 
@@ -1021,9 +1062,8 @@ _lsprof_exec(PyObject *module)
 
 static PyModuleDef_Slot _lsprofslots[] = {
     {Py_mod_exec, _lsprof_exec},
-    // XXX gh-103092: fix isolation.
-    {Py_mod_multiple_interpreters, Py_MOD_MULTIPLE_INTERPRETERS_NOT_SUPPORTED},
-    //{Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
+    {Py_mod_gil, Py_MOD_GIL_NOT_USED},
     {0, NULL}
 };
 

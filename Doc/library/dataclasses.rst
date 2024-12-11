@@ -124,7 +124,7 @@ Module contents
    - *unsafe_hash*: If ``False`` (the default), a :meth:`~object.__hash__` method
      is generated according to how *eq* and *frozen* are set.
 
-     :meth:`!__hash__` is used by built-in :meth:`hash()`, and when objects are
+     :meth:`!__hash__` is used by built-in :meth:`hash`, and when objects are
      added to hashed collections such as dictionaries and sets.  Having a
      :meth:`!__hash__` implies that instances of the class are immutable.
      Mutability is a complicated property that depends on the programmer's
@@ -185,10 +185,21 @@ Module contents
    - *slots*: If true (the default is ``False``), :attr:`~object.__slots__` attribute
      will be generated and new class will be returned instead of the original one.
      If :attr:`!__slots__` is already defined in the class, then :exc:`TypeError`
-     is raised. Calling no-arg :func:`super` in dataclasses using ``slots=True`` will result in
-     the following exception being raised:
-     ``TypeError: super(type, obj): obj must be an instance or subtype of type``.
-     The two-arg :func:`super` is a valid workaround. See :gh:`90562` for full details.
+     is raised.
+
+    .. warning::
+        Calling no-arg :func:`super` in dataclasses using ``slots=True``
+        will result in the following exception being raised:
+        ``TypeError: super(type, obj): obj must be an instance or subtype of type``.
+        The two-arg :func:`super` is a valid workaround.
+        See :gh:`90562` for full details.
+
+    .. warning::
+       Passing parameters to a base class :meth:`~object.__init_subclass__`
+       when using ``slots=True`` will result in a :exc:`TypeError`.
+       Either use ``__init_subclass__`` with no parameters
+       or use default values as a workaround.
+       See :gh:`91126` for full details.
 
     .. versionadded:: 3.10
 
@@ -204,7 +215,8 @@ Module contents
 
    - *weakref_slot*: If true (the default is ``False``), add a slot
      named "__weakref__", which is required to make an instance
-     weakref-able.  It is an error to specify ``weakref_slot=True``
+     :func:`weakref-able <weakref.ref>`.
+     It is an error to specify ``weakref_slot=True``
      without also specifying ``slots=True``.
 
     .. versionadded:: 3.11
@@ -457,6 +469,8 @@ Module contents
    :func:`!replace` (or similarly named) method which handles instance
    copying.
 
+   Dataclass instances are also supported by generic function :func:`copy.replace`.
+
 .. function:: is_dataclass(obj)
 
    Return ``True`` if its parameter is a dataclass (including subclasses of a
@@ -539,8 +553,8 @@ that has to be called, it is common to call this method in a
 
     class Rectangle:
         def __init__(self, height, width):
-          self.height = height
-          self.width = width
+            self.height = height
+            self.width = width
 
     @dataclass
     class Square(Rectangle):

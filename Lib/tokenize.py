@@ -41,7 +41,7 @@ blank_re = re.compile(br'^[ \t\f]*(?:[#\r\n]|$)', re.ASCII)
 
 import token
 __all__ = token.__all__ + ["tokenize", "generate_tokens", "detect_encoding",
-                           "untokenize", "TokenInfo"]
+                           "untokenize", "TokenInfo", "open", "TokenError"]
 del token
 
 class TokenInfo(collections.namedtuple('TokenInfo', 'type string start end line')):
@@ -162,8 +162,6 @@ tabsize = 8
 class TokenError(Exception): pass
 
 
-class StopTokenizing(Exception): pass
-
 class Untokenizer:
 
     def __init__(self):
@@ -202,7 +200,7 @@ class Untokenizer:
                         characters[-2::-1]
                     )
                 )
-                if n_backslashes % 2 == 0:
+                if n_backslashes % 2 == 0 or characters[-1] != "N":
                     characters.append(character)
                 else:
                     consume_until_next_bracket = True
@@ -339,7 +337,7 @@ def untokenize(iterable):
 
 
 def _get_normal_name(orig_enc):
-    """Imitates get_normal_name in tokenizer.c."""
+    """Imitates get_normal_name in Parser/tokenizer/helpers.c."""
     # Only care about the first 12 characters.
     enc = orig_enc[:12].lower().replace("_", "-")
     if enc == "utf-8" or enc.startswith("utf-8-"):

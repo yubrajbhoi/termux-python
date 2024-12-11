@@ -2,16 +2,11 @@
 
 import asyncio
 import contextvars
-import gc
-import time
 import unittest
 
-from types import GenericAlias
 from unittest import mock
-from asyncio import base_events
 from asyncio import tasks
 from test.test_asyncio import utils as test_utils
-from test.test_asyncio.test_tasks import get_innermost_context
 from test.support.script_helper import assert_python_ok
 
 MOCK_ANY = mock.ANY
@@ -215,6 +210,56 @@ class EagerTaskFactoryLoopTests:
             await t
             self.assertTrue(coro_second_step_ran)
             self.assertEqual(cv.get(), 1)
+
+        self.run_coro(run())
+
+    def test_staggered_race_with_eager_tasks(self):
+        # See https://github.com/python/cpython/issues/124309
+
+        async def fail():
+            await asyncio.sleep(0)
+            raise ValueError("no good")
+
+        async def blocked():
+            fut = asyncio.Future()
+            await fut
+
+        async def run():
+            winner, index, excs = await asyncio.staggered.staggered_race(
+                [
+                    lambda: blocked(),
+                    lambda: asyncio.sleep(1, result="sleep1"),
+                    lambda: fail()
+                ],
+                delay=0.25
+            )
+            self.assertEqual(winner, 'sleep1')
+            self.assertEqual(index, 1)
+            self.assertIsNone(excs[index])
+            self.assertIsInstance(excs[0], asyncio.CancelledError)
+            self.assertIsInstance(excs[2], ValueError)
+
+        self.run_coro(run())
+
+    def test_staggered_race_with_eager_tasks_no_delay(self):
+        # See https://github.com/python/cpython/issues/124309
+        async def fail():
+            raise ValueError("no good")
+
+        async def run():
+            winner, index, excs = await asyncio.staggered.staggered_race(
+                [
+                    lambda: fail(),
+                    lambda: asyncio.sleep(1, result="sleep1"),
+                    lambda: asyncio.sleep(0, result="sleep0"),
+                ],
+                delay=None
+            )
+            self.assertEqual(winner, 'sleep1')
+            self.assertEqual(index, 1)
+            self.assertIsNone(excs[index])
+            self.assertIsInstance(excs[0], ValueError)
+            self.assertEqual(len(excs), 2)
 
         self.run_coro(run())
 

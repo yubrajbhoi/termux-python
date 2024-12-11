@@ -37,18 +37,19 @@ Module Objects
       single: __package__ (module attribute)
       single: __loader__ (module attribute)
 
-   Return a new module object with the :attr:`__name__` attribute set to *name*.
-   The module's :attr:`__name__`, :attr:`__doc__`, :attr:`__package__`, and
-   :attr:`__loader__` attributes are filled in (all but :attr:`__name__` are set
-   to ``None``); the caller is responsible for providing a :attr:`__file__`
-   attribute.
+   Return a new module object with :attr:`module.__name__` set to *name*.
+   The module's :attr:`!__name__`, :attr:`~module.__doc__`,
+   :attr:`~module.__package__` and :attr:`~module.__loader__` attributes are
+   filled in (all but :attr:`!__name__` are set to ``None``). The caller is
+   responsible for setting a :attr:`~module.__file__` attribute.
 
    Return ``NULL`` with an exception set on error.
 
    .. versionadded:: 3.3
 
    .. versionchanged:: 3.4
-      :attr:`__package__` and :attr:`__loader__` are set to ``None``.
+      :attr:`~module.__package__` and :attr:`~module.__loader__` are now set to
+      ``None``.
 
 
 .. c:function:: PyObject* PyModule_New(const char *name)
@@ -77,8 +78,9 @@ Module Objects
       single: __name__ (module attribute)
       single: SystemError (built-in exception)
 
-   Return *module*'s :attr:`__name__` value.  If the module does not provide one,
-   or if it is not a string, :exc:`SystemError` is raised and ``NULL`` is returned.
+   Return *module*'s :attr:`~module.__name__` value.  If the module does not
+   provide one, or if it is not a string, :exc:`SystemError` is raised and
+   ``NULL`` is returned.
 
    .. versionadded:: 3.3
 
@@ -108,8 +110,8 @@ Module Objects
       single: SystemError (built-in exception)
 
    Return the name of the file from which *module* was loaded using *module*'s
-   :attr:`__file__` attribute.  If this is not defined, or if it is not a
-   unicode string, raise :exc:`SystemError` and return ``NULL``; otherwise return
+   :attr:`~module.__file__` attribute.  If this is not defined, or if it is not a
+   string, raise :exc:`SystemError` and return ``NULL``; otherwise return
    a reference to a Unicode object.
 
    .. versionadded:: 3.2
@@ -417,6 +419,33 @@ The available slot types are:
 
    .. versionadded:: 3.12
 
+.. c:macro:: Py_mod_gil
+
+   Specifies one of the following values:
+
+   .. c:namespace:: NULL
+
+   .. c:macro:: Py_MOD_GIL_USED
+
+      The module depends on the presence of the global interpreter lock (GIL),
+      and may access global state without synchronization.
+
+   .. c:macro:: Py_MOD_GIL_NOT_USED
+
+      The module is safe to run without an active GIL.
+
+   This slot is ignored by Python builds not configured with
+   :option:`--disable-gil`.  Otherwise, it determines whether or not importing
+   this module will cause the GIL to be automatically enabled. See
+   :ref:`whatsnew313-free-threaded-cpython` for more detail.
+
+   Multiple ``Py_mod_gil`` slots may not be specified in one module definition.
+
+   If ``Py_mod_gil`` is not specified, the import machinery defaults to
+   ``Py_MOD_GIL_USED``.
+
+   .. versionadded:: 3.13
+
 See :PEP:`489` for more details on multi-phase initialization.
 
 Low-level module creation functions
@@ -526,7 +555,31 @@ state:
    Note that ``Py_XDECREF()`` should be used instead of ``Py_DECREF()`` in
    this case, since *obj* can be ``NULL``.
 
+   The number of different *name* strings passed to this function
+   should be kept small, usually by only using statically allocated strings
+   as *name*.
+   For names that aren't known at compile time, prefer calling
+   :c:func:`PyUnicode_FromString` and :c:func:`PyObject_SetAttr` directly.
+   For more details, see :c:func:`PyUnicode_InternFromString`, which may be
+   used internally to create a key object.
+
    .. versionadded:: 3.10
+
+
+.. c:function:: int PyModule_Add(PyObject *module, const char *name, PyObject *value)
+
+   Similar to :c:func:`PyModule_AddObjectRef`, but "steals" a reference
+   to *value*.
+   It can be called with a result of function that returns a new reference
+   without bothering to check its result or even saving it to a variable.
+
+   Example usage::
+
+        if (PyModule_Add(module, "spam", PyBytes_FromString(value)) < 0) {
+            goto error;
+        }
+
+   .. versionadded:: 3.13
 
 
 .. c:function:: int PyModule_AddObject(PyObject *module, const char *name, PyObject *value)
@@ -534,7 +587,8 @@ state:
    Similar to :c:func:`PyModule_AddObjectRef`, but steals a reference to
    *value* on success (if it returns ``0``).
 
-   The new :c:func:`PyModule_AddObjectRef` function is recommended, since it is
+   The new :c:func:`PyModule_Add` or :c:func:`PyModule_AddObjectRef`
+   functions are recommended, since it is
    easy to introduce reference leaks by misusing the
    :c:func:`PyModule_AddObject` function.
 
@@ -544,44 +598,24 @@ state:
       only releases the reference to *value* **on success**.
 
       This means that its return value must be checked, and calling code must
-      :c:func:`Py_DECREF` *value* manually on error.
+      :c:func:`Py_XDECREF` *value* manually on error.
 
    Example usage::
 
-      static int
-      add_spam(PyObject *module, int value)
-      {
-          PyObject *obj = PyLong_FromLong(value);
-          if (obj == NULL) {
-              return -1;
-          }
-          if (PyModule_AddObject(module, "spam", obj) < 0) {
-              Py_DECREF(obj);
-              return -1;
-          }
-          // PyModule_AddObject() stole a reference to obj:
-          // Py_DECREF(obj) is not needed here
-          return 0;
-      }
+        PyObject *obj = PyBytes_FromString(value);
+        if (PyModule_AddObject(module, "spam", obj) < 0) {
+            // If 'obj' is not NULL and PyModule_AddObject() failed,
+            // 'obj' strong reference must be deleted with Py_XDECREF().
+            // If 'obj' is NULL, Py_XDECREF() does nothing.
+            Py_XDECREF(obj);
+            goto error;
+        }
+        // PyModule_AddObject() stole a reference to obj:
+        // Py_XDECREF(obj) is not needed here.
 
-   The example can also be written without checking explicitly if *obj* is
-   ``NULL``::
+   .. deprecated:: 3.13
 
-      static int
-      add_spam(PyObject *module, int value)
-      {
-          PyObject *obj = PyLong_FromLong(value);
-          if (PyModule_AddObject(module, "spam", obj) < 0) {
-              Py_XDECREF(obj);
-              return -1;
-          }
-          // PyModule_AddObject() stole a reference to obj:
-          // Py_DECREF(obj) is not needed here
-          return 0;
-      }
-
-   Note that ``Py_XDECREF()`` should be used instead of ``Py_DECREF()`` in
-   this case, since *obj* can be ``NULL``.
+      :c:func:`PyModule_AddObject` is :term:`soft deprecated`.
 
 
 .. c:function:: int PyModule_AddIntConstant(PyObject *module, const char *name, long value)
@@ -590,6 +624,9 @@ state:
    used from the module's initialization function.
    Return ``-1`` with an exception set on error, ``0`` on success.
 
+   This is a convenience function that calls :c:func:`PyLong_FromLong` and
+   :c:func:`PyModule_AddObjectRef`; see their documentation for details.
+
 
 .. c:function:: int PyModule_AddStringConstant(PyObject *module, const char *name, const char *value)
 
@@ -597,6 +634,10 @@ state:
    used from the module's initialization function.  The string *value* must be
    ``NULL``-terminated.
    Return ``-1`` with an exception set on error, ``0`` on success.
+
+   This is a convenience function that calls
+   :c:func:`PyUnicode_InternFromString` and :c:func:`PyModule_AddObjectRef`;
+   see their documentation for details.
 
 
 .. c:macro:: PyModule_AddIntMacro(module, macro)
@@ -620,6 +661,19 @@ state:
    Return ``-1`` with an exception set on error, ``0`` on success.
 
    .. versionadded:: 3.9
+
+.. c:function:: int PyUnstable_Module_SetGIL(PyObject *module, void *gil)
+
+   Indicate that *module* does or does not support running without the global
+   interpreter lock (GIL), using one of the values from
+   :c:macro:`Py_mod_gil`. It must be called during *module*'s initialization
+   function. If this function is not called during module initialization, the
+   import machinery assumes the module does not support running without the
+   GIL. This function is only available in Python builds configured with
+   :option:`--disable-gil`.
+   Return ``-1`` with an exception set on error, ``0`` on success.
+
+   .. versionadded:: 3.13
 
 
 Module lookup

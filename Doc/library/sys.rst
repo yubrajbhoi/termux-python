@@ -195,6 +195,17 @@ always available.
 
    This function should be used for internal and specialized purposes only.
 
+   .. deprecated:: 3.13
+      Use the more general :func:`_clear_internal_caches` function instead.
+
+
+.. function:: _clear_internal_caches()
+
+   Clear all internal performance-related caches. Use this function *only* to
+   release unnecessary references and memory blocks when hunting for leaks.
+
+   .. versionadded:: 3.13
+
 
 .. function:: _current_frames()
 
@@ -724,11 +735,11 @@ always available.
    regardless of their size.  This function is mainly useful for tracking
    and debugging memory leaks.  Because of the interpreter's internal
    caches, the result can vary from call to call; you may have to call
-   :func:`_clear_type_cache()` and :func:`gc.collect()` to get more
+   :func:`_clear_internal_caches` and :func:`gc.collect` to get more
    predictable results.
 
    If a Python build or implementation cannot reasonably compute this
-   information, :func:`getallocatedblocks()` is allowed to return 0 instead.
+   information, :func:`getallocatedblocks` is allowed to return 0 instead.
 
    .. versionadded:: 3.4
 
@@ -742,7 +753,9 @@ always available.
 
 .. function:: getandroidapilevel()
 
-   Return the build time API version of Android as an integer.
+   Return the build-time API level of Android as an integer. This represents the
+   minimum version of Android this build of Python can run on. For runtime
+   version information, see :func:`platform.android_ver`.
 
    .. availability:: Android.
 
@@ -831,7 +844,7 @@ always available.
 
    Note that the returned value may not actually reflect how many
    references to the object are actually held.  For example, some
-   objects are "immortal" and have a very high refcount that does not
+   objects are :term:`immortal` and have a very high refcount that does not
    reflect the actual number of references.  Consequently, do not rely
    on the returned value to be accurate, other than a value of 0 or 1.
 
@@ -905,6 +918,35 @@ always available.
 
       This function should be used for internal and specialized purposes only.
       It is not guaranteed to exist in all implementations of Python.
+
+
+.. function:: getobjects(limit[, type])
+
+   This function only exists if CPython was built using the
+   specialized configure option :option:`--with-trace-refs`.
+   It is intended only for debugging garbage-collection issues.
+
+   Return a list of up to *limit* dynamically allocated Python objects.
+   If *type* is given, only objects of that exact type (not subtypes)
+   are included.
+
+   Objects from the list are not safe to use.
+   Specifically, the result will include objects from all interpreters that
+   share their object allocator state (that is, ones created with
+   :c:member:`PyInterpreterConfig.use_main_obmalloc` set to 1
+   or using :c:func:`Py_NewInterpreter`, and the
+   :ref:`main interpreter <sub-interpreter-support>`).
+   Mixing objects from different interpreters may lead to crashes
+   or other unexpected behavior.
+
+   .. impl-detail::
+
+      This function should be used for specialized purposes only.
+      It is not guaranteed to exist in all implementations of Python.
+
+   .. versionchanged:: 3.13.1
+
+      The result may include objects from other interpreters.
 
 
 .. function:: getprofile()
@@ -1182,14 +1224,24 @@ always available.
    names used in Python programs are automatically interned, and the dictionaries
    used to hold module, class or instance attributes have interned keys.
 
-   Interned strings are not immortal; you must keep a reference to the return
-   value of :func:`intern` around to benefit from it.
+   Interned strings are not :term:`immortal`; you must keep a reference to the
+   return value of :func:`intern` around to benefit from it.
+
+
+.. function:: _is_gil_enabled()
+
+   Return :const:`True` if the :term:`GIL` is enabled and :const:`False` if
+   it is disabled.
+
+   .. versionadded:: 3.13
 
 
 .. function:: is_finalizing()
 
-   Return :const:`True` if the Python interpreter is
-   :term:`shutting down <interpreter shutdown>`, :const:`False` otherwise.
+   Return :const:`True` if the main Python interpreter is
+   :term:`shutting down <interpreter shutdown>`. Return :const:`False` otherwise.
+
+   See also the :exc:`PythonFinalizationError` exception.
 
    .. versionadded:: 3.5
 
@@ -1204,6 +1256,18 @@ always available.
    module for more information.)
 
    .. versionadded:: 3.12
+
+.. function:: _is_interned(string)
+
+   Return :const:`True` if the given string is "interned", :const:`False`
+   otherwise.
+
+   .. versionadded:: 3.13
+
+   .. impl-detail::
+
+      It is not guaranteed to exist in all implementations of Python.
+
 
 .. data:: last_type
           last_value
@@ -1239,7 +1303,8 @@ always available.
     that implement Python's default import semantics. The
     :meth:`~importlib.abc.MetaPathFinder.find_spec` method is called with at
     least the absolute name of the module being imported. If the module to be
-    imported is contained in a package, then the parent package's :attr:`__path__`
+    imported is contained in a package, then the parent package's
+    :attr:`~module.__path__`
     attribute is passed in as a second argument. The method returns a
     :term:`module spec`, or ``None`` if the module cannot be found.
 
@@ -1342,47 +1407,42 @@ always available.
 
 .. data:: platform
 
-   This string contains a platform identifier that can be used to append
-   platform-specific components to :data:`sys.path`, for instance.
+   A string containing a platform identifier. Known values are:
 
-   For Unix systems, except on Linux and AIX, this is the lowercased OS name as
-   returned by ``uname -s`` with the first part of the version as returned by
+   ================ ===========================
+   System           ``platform`` value
+   ================ ===========================
+   AIX              ``'aix'``
+   Android          ``'android'``
+   Emscripten       ``'emscripten'``
+   iOS              ``'ios'``
+   Linux            ``'linux'``
+   macOS            ``'darwin'``
+   Windows          ``'win32'``
+   Windows/Cygwin   ``'cygwin'``
+   WASI             ``'wasi'``
+   ================ ===========================
+
+   On Unix systems not listed in the table, the value is the lowercased OS name
+   as returned by ``uname -s``, with the first part of the version as returned by
    ``uname -r`` appended, e.g. ``'sunos5'`` or ``'freebsd8'``, *at the time
    when Python was built*.  Unless you want to test for a specific system
    version, it is therefore recommended to use the following idiom::
 
       if sys.platform.startswith('freebsd'):
           # FreeBSD-specific code here...
-      elif sys.platform.startswith('linux'):
-          # Linux-specific code here...
-      elif sys.platform.startswith('aix'):
-          # AIX-specific code here...
-
-   For other systems, the values are:
-
-   ================ ===========================
-   System           ``platform`` value
-   ================ ===========================
-   AIX              ``'aix'``
-   Emscripten       ``'emscripten'``
-   Linux            ``'linux'``
-   WASI             ``'wasi'``
-   Windows          ``'win32'``
-   Windows/Cygwin   ``'cygwin'``
-   macOS            ``'darwin'``
-   ================ ===========================
 
    .. versionchanged:: 3.3
       On Linux, :data:`sys.platform` doesn't contain the major version anymore.
-      It is always ``'linux'``, instead of ``'linux2'`` or ``'linux3'``.  Since
-      older Python versions include the version number, it is recommended to
-      always use the ``startswith`` idiom presented above.
+      It is always ``'linux'``, instead of ``'linux2'`` or ``'linux3'``.
 
    .. versionchanged:: 3.8
       On AIX, :data:`sys.platform` doesn't contain the major version anymore.
-      It is always ``'aix'``, instead of ``'aix5'`` or ``'aix7'``.  Since
-      older Python versions include the version number, it is recommended to
-      always use the ``startswith`` idiom presented above.
+      It is always ``'aix'``, instead of ``'aix5'`` or ``'aix7'``.
+
+   .. versionchanged:: 3.13
+      On Android, :data:`sys.platform` now returns ``'android'`` rather than
+      ``'linux'``.
 
    .. seealso::
 
@@ -1646,12 +1706,6 @@ always available.
       ``'opcode'`` event type added; :attr:`~frame.f_trace_lines` and
       :attr:`~frame.f_trace_opcodes` attributes added to frames
 
-   .. versionchanged:: 3.12
-      ``'opcode'`` event will only be emitted if :attr:`~frame.f_trace_opcodes`
-      of at least one frame has been set to :const:`True` before :func:`settrace`
-      is called. This behavior will be changed back in 3.13 to be consistent with
-      previous versions.
-
 .. function:: set_asyncgen_hooks([firstiter] [, finalizer])
 
    Accepts two optional keyword arguments which are callables that accept an
@@ -1744,8 +1798,16 @@ always available.
 
    .. availability:: Windows.
 
+   .. note::
+      Changing the filesystem encoding after Python startup is risky because
+      the old fsencoding or paths encoded by the old fsencoding may be cached
+      somewhere. Use :envvar:`PYTHONLEGACYWINDOWSFSENCODING` instead.
+
    .. versionadded:: 3.6
       See :pep:`529` for more details.
+
+   .. deprecated-removed:: 3.13 3.16
+      Use :envvar:`PYTHONLEGACYWINDOWSFSENCODING` instead.
 
 .. data:: stdin
           stdout

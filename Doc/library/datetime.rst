@@ -180,19 +180,19 @@ Objects of the :class:`date` type are always naive.
 
 An object of type :class:`.time` or :class:`.datetime` may be aware or naive.
 
-A :class:`.datetime` object *d* is aware if both of the following hold:
+A :class:`.datetime` object ``d`` is aware if both of the following hold:
 
 1. ``d.tzinfo`` is not ``None``
 2. ``d.tzinfo.utcoffset(d)`` does not return ``None``
 
-Otherwise, *d* is naive.
+Otherwise, ``d`` is naive.
 
-A :class:`.time` object *t* is aware if both of the following hold:
+A :class:`.time` object ``t`` is aware if both of the following hold:
 
 1. ``t.tzinfo`` is not ``None``
 2. ``t.tzinfo.utcoffset(None)`` does not return ``None``.
 
-Otherwise, *t* is naive.
+Otherwise, ``t`` is naive.
 
 The distinction between aware and naive doesn't apply to :class:`timedelta`
 objects.
@@ -283,17 +283,37 @@ Class attributes:
 Note that, because of normalization, ``timedelta.max`` is greater than ``-timedelta.min``.
 ``-timedelta.max`` is not representable as a :class:`timedelta` object.
 
+
 Instance attributes (read-only):
 
-+------------------+--------------------------------------------+
-| Attribute        | Value                                      |
-+==================+============================================+
-| ``days``         | Between -999999999 and 999999999 inclusive |
-+------------------+--------------------------------------------+
-| ``seconds``      | Between 0 and 86399 inclusive              |
-+------------------+--------------------------------------------+
-| ``microseconds`` | Between 0 and 999999 inclusive             |
-+------------------+--------------------------------------------+
+.. attribute:: timedelta.days
+
+   Between -999,999,999 and 999,999,999 inclusive.
+
+
+.. attribute:: timedelta.seconds
+
+   Between 0 and 86,399 inclusive.
+
+   .. caution::
+
+      It is a somewhat common bug for code to unintentionally use this attribute
+      when it is actually intended to get a :meth:`~timedelta.total_seconds`
+      value instead:
+
+      .. doctest::
+
+         >>> from datetime import timedelta
+         >>> duration = timedelta(seconds=11235813)
+         >>> duration.days, duration.seconds
+         (130, 3813)
+         >>> duration.total_seconds()
+         11235813.0
+
+.. attribute:: timedelta.microseconds
+
+   Between 0 and 999,999 inclusive.
+
 
 Supported operations:
 
@@ -338,14 +358,14 @@ Supported operations:
 +--------------------------------+-----------------------------------------------+
 | ``q, r = divmod(t1, t2)``      | Computes the quotient and the remainder:      |
 |                                | ``q = t1 // t2`` (3) and ``r = t1 % t2``.     |
-|                                | q is an integer and r is a :class:`timedelta` |
-|                                | object.                                       |
+|                                | ``q`` is an integer and ``r`` is a            |
+|                                | :class:`timedelta` object.                    |
 +--------------------------------+-----------------------------------------------+
 | ``+t1``                        | Returns a :class:`timedelta` object with the  |
 |                                | same value. (2)                               |
 +--------------------------------+-----------------------------------------------+
 | ``-t1``                        | Equivalent to ``timedelta(-t1.days,           |
-|                                | -t1.seconds*, -t1.microseconds)``,            |
+|                                | -t1.seconds, -t1.microseconds)``,             |
 |                                | and to ``t1 * -1``. (1)(4)                    |
 +--------------------------------+-----------------------------------------------+
 | ``abs(t)``                     | Equivalent to ``+t`` when ``t.days >= 0``,    |
@@ -506,7 +526,7 @@ Other constructors, all class methods:
    January 1 of year 1 has ordinal 1.
 
    :exc:`ValueError` is raised unless ``1 <= ordinal <=
-   date.max.toordinal()``. For any date *d*,
+   date.max.toordinal()``. For any date ``d``,
    ``date.fromordinal(d.toordinal()) == d``.
 
 
@@ -619,10 +639,26 @@ Notes:
 (4)
    :class:`date` objects are equal if they represent the same date.
 
+   :class:`!date` objects that are not also :class:`.datetime` instances
+   are never equal to :class:`!datetime` objects, even if they represent
+   the same date.
+
 (5)
    *date1* is considered less than *date2* when *date1* precedes *date2* in time.
    In other words, ``date1 < date2`` if and only if ``date1.toordinal() <
    date2.toordinal()``.
+
+   Order comparison between a :class:`!date` object that is not also a
+   :class:`.datetime` instance and a :class:`!datetime` object raises
+   :exc:`TypeError`.
+
+.. versionchanged:: 3.13
+   Comparison between :class:`.datetime` object and an instance of
+   the :class:`date` subclass that is not a :class:`!datetime` subclass
+   no longer converts the latter to :class:`!date`, ignoring the time part
+   and the time zone.
+   The default behavior can be changed by overriding the special comparison
+   methods in subclasses.
 
 In Boolean contexts, all :class:`date` objects are considered to be true.
 
@@ -639,6 +675,9 @@ Instance methods:
        >>> d = date(2002, 12, 31)
        >>> d.replace(day=26)
        datetime.date(2002, 12, 26)
+
+   :class:`date` objects are also supported by generic function
+   :func:`copy.replace`.
 
 
 .. method:: date.timetuple()
@@ -658,7 +697,7 @@ Instance methods:
 .. method:: date.toordinal()
 
    Return the proleptic Gregorian ordinal of the date, where January 1 of year 1
-   has ordinal 1. For any :class:`date` object *d*,
+   has ordinal 1. For any :class:`date` object ``d``,
    ``date.fromordinal(d.toordinal()) == d``.
 
 
@@ -710,7 +749,7 @@ Instance methods:
 
 .. method:: date.__str__()
 
-   For a date *d*, ``str(d)`` is equivalent to ``d.isoformat()``.
+   For a date ``d``, ``str(d)`` is equivalent to ``d.isoformat()``.
 
 
 .. method:: date.ctime()
@@ -876,6 +915,10 @@ Other constructors, all class methods:
 
    This function is preferred over :meth:`today` and :meth:`utcnow`.
 
+   .. note::
+
+      Subsequent calls to :meth:`!datetime.now` may return the same
+      instant depending on the precision of the underlying clock.
 
 .. classmethod:: datetime.utcnow()
 
@@ -987,7 +1030,7 @@ Other constructors, all class methods:
    is used.  If the *date* argument is a :class:`.datetime` object, its time components
    and :attr:`.tzinfo` attributes are ignored.
 
-   For any :class:`.datetime` object *d*,
+   For any :class:`.datetime` object ``d``,
    ``d == datetime.combine(d.date(), d.time(), d.tzinfo)``.
 
    .. versionchanged:: 3.6
@@ -1034,7 +1077,7 @@ Other constructors, all class methods:
    .. versionadded:: 3.7
    .. versionchanged:: 3.11
       Previously, this method only supported formats that could be emitted by
-      :meth:`date.isoformat()` or :meth:`datetime.isoformat()`.
+      :meth:`date.isoformat` or :meth:`datetime.isoformat`.
 
 
 .. classmethod:: datetime.fromisocalendar(year, week, day)
@@ -1060,6 +1103,24 @@ Other constructors, all class methods:
    time tuple.  See also :ref:`strftime-strptime-behavior` and
    :meth:`datetime.fromisoformat`.
 
+   .. versionchanged:: 3.13
+
+      If *format* specifies a day of month without a year a
+      :exc:`DeprecationWarning` is now emitted.  This is to avoid a quadrennial
+      leap year bug in code seeking to parse only a month and day as the
+      default year used in absence of one in the format is not a leap year.
+      Such *format* values may raise an error as of Python 3.15.  The
+      workaround is to always include a year in your *format*.  If parsing
+      *date_string* values that do not have a year, explicitly add a year that
+      is a leap year before parsing:
+
+      .. doctest::
+
+         >>> from datetime import datetime
+         >>> date_string = "02/29"
+         >>> when = datetime.strptime(f"{date_string};1984", "%m/%d;%Y")  # Avoids leap year bug.
+         >>> when.strftime("%B %d")  # doctest: +SKIP
+         'February 29'
 
 
 Class attributes:
@@ -1176,11 +1237,11 @@ Supported operations:
 
    If both are naive, or both are aware and have the same :attr:`~.datetime.tzinfo` attribute,
    the :attr:`~.datetime.tzinfo` attributes are ignored, and the result is a :class:`timedelta`
-   object *t* such that ``datetime2 + t == datetime1``. No time zone adjustments
+   object ``t`` such that ``datetime2 + t == datetime1``. No time zone adjustments
    are done in this case.
 
    If both are aware and have different :attr:`~.datetime.tzinfo` attributes, ``a-b`` acts
-   as if *a* and *b* were first converted to naive UTC datetimes. The
+   as if ``a`` and ``b`` were first converted to naive UTC datetimes. The
    result is ``(a.replace(tzinfo=None) - a.utcoffset()) - (b.replace(tzinfo=None)
    - b.utcoffset())`` except that the implementation never overflows.
 
@@ -1189,9 +1250,6 @@ Supported operations:
    and time, taking into account the time zone.
 
    Naive and aware :class:`!datetime` objects are never equal.
-   :class:`!datetime` objects are never equal to :class:`date` objects
-   that are not also :class:`!datetime` instances, even if they represent
-   the same date.
 
    If both comparands are aware, and have the same :attr:`!tzinfo` attribute,
    the :attr:`!tzinfo` and :attr:`~.datetime.fold` attributes are ignored and
@@ -1206,9 +1264,8 @@ Supported operations:
    *datetime1* is considered less than *datetime2* when *datetime1* precedes
    *datetime2* in time, taking into account the time zone.
 
-   Order comparison between naive and aware :class:`.datetime` objects,
-   as well as a :class:`!datetime` object and a :class:`!date` object
-   that is not also a :class:`!datetime` instance, raises :exc:`TypeError`.
+   Order comparison between naive and aware :class:`.datetime` objects
+   raises :exc:`TypeError`.
 
    If both comparands are aware, and have the same :attr:`!tzinfo` attribute,
    the :attr:`!tzinfo` and :attr:`~.datetime.fold` attributes are ignored and
@@ -1220,6 +1277,14 @@ Supported operations:
 .. versionchanged:: 3.3
    Equality comparisons between aware and naive :class:`.datetime`
    instances don't raise :exc:`TypeError`.
+
+.. versionchanged:: 3.13
+   Comparison between :class:`.datetime` object and an instance of
+   the :class:`date` subclass that is not a :class:`!datetime` subclass
+   no longer converts the latter to :class:`!date`, ignoring the time part
+   and the time zone.
+   The default behavior can be changed by overriding the special comparison
+   methods in subclasses.
 
 Instance methods:
 
@@ -1254,6 +1319,9 @@ Instance methods:
    new values by whichever keyword arguments are specified. Note that
    ``tzinfo=None`` can be specified to create a naive datetime from an aware
    datetime with no conversion of date and time data.
+
+   :class:`.datetime` objects are also supported by generic function
+   :func:`copy.replace`.
 
    .. versionchanged:: 3.6
       Added the *fold* parameter.
@@ -1353,11 +1421,11 @@ Instance methods:
 
 .. method:: datetime.utctimetuple()
 
-   If :class:`.datetime` instance *d* is naive, this is the same as
+   If :class:`.datetime` instance ``d`` is naive, this is the same as
    ``d.timetuple()`` except that :attr:`~.time.struct_time.tm_isdst` is forced to 0 regardless of what
    ``d.dst()`` returns. DST is never in effect for a UTC time.
 
-   If *d* is aware, *d* is normalized to UTC time, by subtracting
+   If ``d`` is aware, ``d`` is normalized to UTC time, by subtracting
    ``d.utcoffset()``, and a :class:`time.struct_time` for the
    normalized time is returned. :attr:`!tm_isdst` is forced to 0. Note
    that an :exc:`OverflowError` may be raised if ``d.year`` was
@@ -1505,7 +1573,7 @@ Instance methods:
 
 .. method:: datetime.__str__()
 
-   For a :class:`.datetime` instance *d*, ``str(d)`` is equivalent to
+   For a :class:`.datetime` instance ``d``, ``str(d)`` is equivalent to
    ``d.isoformat(' ')``.
 
 
@@ -1752,7 +1820,7 @@ Instance attributes (read-only):
    .. versionadded:: 3.6
 
 :class:`.time` objects support equality and order comparisons,
-where *a* is considered less than *b* when *a* precedes *b* in time.
+where ``a`` is considered less than ``b`` when ``a`` precedes ``b`` in time.
 
 Naive and aware :class:`!time` objects are never equal.
 Order comparison between naive and aware :class:`!time` objects raises
@@ -1817,7 +1885,7 @@ Other constructor:
    .. versionadded:: 3.7
    .. versionchanged:: 3.11
       Previously, this method only supported formats that could be emitted by
-      :meth:`time.isoformat()`.
+      :meth:`time.isoformat`.
 
 
 Instance methods:
@@ -1829,6 +1897,9 @@ Instance methods:
    new values by whichever keyword arguments are specified. Note that
    ``tzinfo=None`` can be specified to create a naive :class:`.time` from an
    aware :class:`.time`, without conversion of the time data.
+
+   :class:`.time` objects are also supported by generic function
+   :func:`copy.replace`.
 
    .. versionchanged:: 3.6
       Added the *fold* parameter.
@@ -1880,7 +1951,7 @@ Instance methods:
 
 .. method:: time.__str__()
 
-   For a time *t*, ``str(t)`` is equivalent to ``t.isoformat()``.
+   For a time ``t``, ``str(t)`` is equivalent to ``t.isoformat()``.
 
 
 .. method:: time.strftime(format)
@@ -2627,6 +2698,25 @@ Notes:
    When used with the :meth:`~.datetime.strptime` method, the leading zero is optional
    for  formats ``%d``, ``%m``, ``%H``, ``%I``, ``%M``, ``%S``, ``%j``, ``%U``,
    ``%W``, and ``%V``. Format ``%y`` does require a leading zero.
+
+(10)
+   When parsing a month and day using :meth:`~.datetime.strptime`, always
+   include a year in the format.  If the value you need to parse lacks a year,
+   append an explicit dummy leap year.  Otherwise your code will raise an
+   exception when it encounters leap day because the default year used by the
+   parser is not a leap year.  Users run into this bug every four years...
+
+   .. doctest::
+
+      >>> month_day = "02/29"
+      >>> datetime.strptime(f"{month_day};1984", "%m/%d;%Y")  # No leap year bug.
+      datetime.datetime(1984, 2, 29, 0, 0)
+
+   .. deprecated-removed:: 3.13 3.15
+      :meth:`~.datetime.strptime` calls using a format string containing
+      a day of month without a year now emit a
+      :exc:`DeprecationWarning`. In 3.15 or later we may change this into
+      an error or change the default year to a leap year. See :gh:`70647`.
 
 .. rubric:: Footnotes
 

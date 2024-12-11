@@ -13,6 +13,8 @@ from test.test_asyncio import utils as test_utils
 from test import support
 from test.support import os_helper
 
+if not support.has_subprocess_support:
+    raise unittest.SkipTest("test module requires subprocess")
 
 if support.MS_WINDOWS:
     import msvcrt
@@ -207,7 +209,7 @@ class SubprocessMixin:
 
     def test_kill_issue43884(self):
         if sys.platform == 'win32':
-            blocking_shell_command = f'{sys.executable} -c "import time; time.sleep(2)"'
+            blocking_shell_command = f'"{sys.executable}" -c "import time; time.sleep(2)"'
         else:
             blocking_shell_command = 'sleep 1; sleep 1'
         creationflags = 0
@@ -478,7 +480,8 @@ class SubprocessMixin:
         self.assertEqual(output, None)
         self.assertEqual(exitcode, 0)
 
-    @unittest.skipIf(sys.platform != 'linux', "Don't have /dev/stdin")
+    @unittest.skipIf(sys.platform not in ('linux', 'android'),
+                     "Don't have /dev/stdin")
     def test_devstdin_input(self):
 
         async def devstdin_input(message):
@@ -745,7 +748,10 @@ class SubprocessMixin:
 
     def test_create_subprocess_env_shell(self) -> None:
         async def main() -> None:
-            cmd = f'''{sys.executable} -c "import os, sys; sys.stdout.write(os.getenv('FOO'))"'''
+            executable = sys.executable
+            if sys.platform == "win32":
+                executable = f'"{executable}"'
+            cmd = f'''{executable} -c "import os, sys; sys.stdout.write(os.getenv('FOO'))"'''
             env = os.environ.copy()
             env["FOO"] = "bar"
             proc = await asyncio.create_subprocess_shell(
@@ -864,6 +870,21 @@ class SubprocessMixin:
             res = await asyncio.gather(*[get_command_stdout(sys.executable, '-c',
                                         f'print({out!r})') for out in outputs])
             self.assertEqual(res, outputs)
+
+        self.loop.run_until_complete(main())
+
+    @unittest.skipIf(sys.platform != 'linux', "Linux only")
+    def test_subprocess_send_signal_race(self):
+        # See https://github.com/python/cpython/issues/87744
+        async def main():
+            for _ in range(10):
+                proc = await asyncio.create_subprocess_exec('sleep', '0.1')
+                await asyncio.sleep(0.1)
+                try:
+                    proc.send_signal(signal.SIGUSR1)
+                except ProcessLookupError:
+                    pass
+                self.assertNotEqual(await proc.wait(), 255)
 
         self.loop.run_until_complete(main())
 

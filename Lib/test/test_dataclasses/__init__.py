@@ -17,6 +17,7 @@ from unittest.mock import Mock
 from typing import ClassVar, Any, List, Union, Tuple, Dict, Generic, TypeVar, Optional, Protocol, DefaultDict
 from typing import get_type_hints
 from collections import deque, OrderedDict, namedtuple, defaultdict
+from copy import deepcopy
 from functools import total_ordering
 
 import typing       # Needed for the string "typing.ClassVar[int]" to work as an annotation.
@@ -136,7 +137,7 @@ class TestCase(unittest.TestCase):
         # Non-defaults following defaults.
         with self.assertRaisesRegex(TypeError,
                                     "non-default argument 'y' follows "
-                                    "default argument"):
+                                    "default argument 'x'"):
             @dataclass
             class C:
                 x: int = 0
@@ -145,7 +146,7 @@ class TestCase(unittest.TestCase):
         # A derived class adds a non-default field after a default one.
         with self.assertRaisesRegex(TypeError,
                                     "non-default argument 'y' follows "
-                                    "default argument"):
+                                    "default argument 'x'"):
             @dataclass
             class B:
                 x: int = 0
@@ -158,7 +159,7 @@ class TestCase(unittest.TestCase):
         #  a field which didn't use to have a default.
         with self.assertRaisesRegex(TypeError,
                                     "non-default argument 'y' follows "
-                                    "default argument"):
+                                    "default argument 'x'"):
             @dataclass
             class B:
                 x: int
@@ -2512,6 +2513,15 @@ class TestRepr(unittest.TestCase):
 
 
 class TestEq(unittest.TestCase):
+    def test_recursive_eq(self):
+        # Test a class with recursive child
+        @dataclass
+        class C:
+            recursive: object = ...
+        c = C()
+        c.recursive = c
+        self.assertEqual(c, c)
+
     def test_no_eq(self):
         # Test a class with no __eq__ and eq=False.
         @dataclass(eq=False)
@@ -2907,6 +2917,101 @@ class TestFrozen(unittest.TestCase):
             class D(C):
                 j: int
 
+    def test_inherit_frozen_mutliple_inheritance(self):
+        @dataclass
+        class NotFrozen:
+            pass
+
+        @dataclass(frozen=True)
+        class Frozen:
+            pass
+
+        class NotDataclass:
+            pass
+
+        for bases in (
+            (NotFrozen, Frozen),
+            (Frozen, NotFrozen),
+            (Frozen, NotDataclass),
+            (NotDataclass, Frozen),
+        ):
+            with self.subTest(bases=bases):
+                with self.assertRaisesRegex(
+                    TypeError,
+                    'cannot inherit non-frozen dataclass from a frozen one',
+                ):
+                    @dataclass
+                    class NotFrozenChild(*bases):
+                        pass
+
+        for bases in (
+            (NotFrozen, Frozen),
+            (Frozen, NotFrozen),
+            (NotFrozen, NotDataclass),
+            (NotDataclass, NotFrozen),
+        ):
+            with self.subTest(bases=bases):
+                with self.assertRaisesRegex(
+                    TypeError,
+                    'cannot inherit frozen dataclass from a non-frozen one',
+                ):
+                    @dataclass(frozen=True)
+                    class FrozenChild(*bases):
+                        pass
+
+    def test_inherit_frozen_mutliple_inheritance_regular_mixins(self):
+        @dataclass(frozen=True)
+        class Frozen:
+            pass
+
+        class NotDataclass:
+            pass
+
+        class C1(Frozen, NotDataclass):
+            pass
+        self.assertEqual(C1.__mro__, (C1, Frozen, NotDataclass, object))
+
+        class C2(NotDataclass, Frozen):
+            pass
+        self.assertEqual(C2.__mro__, (C2, NotDataclass, Frozen, object))
+
+        @dataclass(frozen=True)
+        class C3(Frozen, NotDataclass):
+            pass
+        self.assertEqual(C3.__mro__, (C3, Frozen, NotDataclass, object))
+
+        @dataclass(frozen=True)
+        class C4(NotDataclass, Frozen):
+            pass
+        self.assertEqual(C4.__mro__, (C4, NotDataclass, Frozen, object))
+
+    def test_multiple_frozen_dataclasses_inheritance(self):
+        @dataclass(frozen=True)
+        class FrozenA:
+            pass
+
+        @dataclass(frozen=True)
+        class FrozenB:
+            pass
+
+        class C1(FrozenA, FrozenB):
+            pass
+        self.assertEqual(C1.__mro__, (C1, FrozenA, FrozenB, object))
+
+        class C2(FrozenB, FrozenA):
+            pass
+        self.assertEqual(C2.__mro__, (C2, FrozenB, FrozenA, object))
+
+        @dataclass(frozen=True)
+        class C3(FrozenA, FrozenB):
+            pass
+        self.assertEqual(C3.__mro__, (C3, FrozenA, FrozenB, object))
+
+        @dataclass(frozen=True)
+        class C4(FrozenB, FrozenA):
+            pass
+        self.assertEqual(C4.__mro__, (C4, FrozenB, FrozenA, object))
+
     def test_inherit_nonfrozen_from_empty(self):
         @dataclass
         class C:
@@ -3070,6 +3175,48 @@ class TestFrozen(unittest.TestCase):
         # If x is mutable, computing the hash is an error.
         with self.assertRaisesRegex(TypeError, 'unhashable type'):
             hash(C({}))
+
+    def test_frozen_deepcopy_without_slots(self):
+        # see: https://github.com/python/cpython/issues/89683
+        @dataclass(frozen=True, slots=False)
+        class C:
+            s: str
+
+        c = C('hello')
+        self.assertEqual(deepcopy(c), c)
+
+    def test_frozen_deepcopy_with_slots(self):
+        # see: https://github.com/python/cpython/issues/89683
+        with self.subTest('generated __slots__'):
+            @dataclass(frozen=True, slots=True)
+            class C:
+                s: str
+
+            c = C('hello')
+            self.assertEqual(deepcopy(c), c)
+
+        with self.subTest('user-defined __slots__ and no __{get,set}state__'):
+            @dataclass(frozen=True, slots=False)
+            class C:
+                __slots__ = ('s',)
+                s: str
+
+            # with user-defined slots, __getstate__ and __setstate__ are not
+            # automatically added, hence the error
+            err = r"^cannot\ assign\ to\ field\ 's'$"
+            self.assertRaisesRegex(FrozenInstanceError, err, deepcopy, C(''))
+
+        with self.subTest('user-defined __slots__ and __{get,set}state__'):
+            @dataclass(frozen=True, slots=False)
+            class C:
+                __slots__ = ('s',)
+                __getstate__ = dataclasses._dataclass_getstate
+                __setstate__ = dataclasses._dataclass_setstate
+
+                s: str
+
+            c = C('hello')
+            self.assertEqual(deepcopy(c), c)
 
 
 class TestSlots(unittest.TestCase):
@@ -3559,6 +3706,57 @@ class TestSlots(unittest.TestCase):
         self.assertEqual(A.__slots__, ())
         self.assertEqual(A().__dict__, {})
         A()
+
+    @support.cpython_only
+    def test_dataclass_slot_dict_ctype(self):
+        # https://github.com/python/cpython/issues/123935
+        from test.support import import_helper
+        # Skips test if `_testcapi` is not present:
+        _testcapi = import_helper.import_module('_testcapi')
+
+        @dataclass(slots=True)
+        class HasDictOffset(_testcapi.HeapCTypeWithDict):
+            __dict__: dict = {}
+        self.assertNotEqual(_testcapi.HeapCTypeWithDict.__dictoffset__, 0)
+        self.assertEqual(HasDictOffset.__slots__, ())
+
+        @dataclass(slots=True)
+        class DoesNotHaveDictOffset(_testcapi.HeapCTypeWithWeakref):
+            __dict__: dict = {}
+        self.assertEqual(_testcapi.HeapCTypeWithWeakref.__dictoffset__, 0)
+        self.assertEqual(DoesNotHaveDictOffset.__slots__, ('__dict__',))
+
+    @support.cpython_only
+    def test_slots_with_wrong_init_subclass(self):
+        # TODO: This test is for a kinda-buggy behavior.
+        # Ideally, it should be fixed and `__init_subclass__`
+        # should be fully supported in the future versions.
+        # See https://github.com/python/cpython/issues/91126
+        class WrongSuper:
+            def __init_subclass__(cls, arg):
+                pass
+
+        with self.assertRaisesRegex(
+            TypeError,
+            "missing 1 required positional argument: 'arg'",
+        ):
+            @dataclass(slots=True)
+            class WithWrongSuper(WrongSuper, arg=1):
+                pass
+
+        class CorrectSuper:
+            args = []
+            def __init_subclass__(cls, arg="default"):
+                cls.args.append(arg)
+
+        @dataclass(slots=True)
+        class WithCorrectSuper(CorrectSuper):
+            pass
+
+        # __init_subclass__ is called twice: once for `WithCorrectSuper`
+        # and once for `WithCorrectSuper__slots__` new class
+        # that we create internally.
+        self.assertEqual(CorrectSuper.args, ["default", "default"])
 
 
 class TestDescriptors(unittest.TestCase):
@@ -4126,9 +4324,9 @@ class TestReplace(unittest.TestCase):
         self.assertEqual((c1.x, c1.y, c1.z, c1.t), (3, 2, 10, 100))
 
 
-        with self.assertRaisesRegex(ValueError, 'init=False'):
+        with self.assertRaisesRegex(TypeError, 'init=False'):
             replace(c, x=3, z=20, t=50)
-        with self.assertRaisesRegex(ValueError, 'init=False'):
+        with self.assertRaisesRegex(TypeError, 'init=False'):
             replace(c, z=20)
             replace(c, x=3, z=20, t=50)
 
@@ -4181,10 +4379,10 @@ class TestReplace(unittest.TestCase):
         self.assertEqual((c1.x, c1.y), (5, 10))
 
         # Trying to replace y is an error.
-        with self.assertRaisesRegex(ValueError, 'init=False'):
+        with self.assertRaisesRegex(TypeError, 'init=False'):
             replace(c, x=2, y=30)
 
-        with self.assertRaisesRegex(ValueError, 'init=False'):
+        with self.assertRaisesRegex(TypeError, 'init=False'):
             replace(c, y=30)
 
     def test_classvar(self):
@@ -4217,8 +4415,8 @@ class TestReplace(unittest.TestCase):
 
         c = C(1, 10)
         self.assertEqual(c.x, 10)
-        with self.assertRaisesRegex(ValueError, r"InitVar 'y' must be "
-                                    "specified with replace()"):
+        with self.assertRaisesRegex(TypeError, r"InitVar 'y' must be "
+                                    r"specified with replace\(\)"):
             replace(c, x=3)
         c = replace(c, x=3, y=5)
         self.assertEqual(c.x, 15)
@@ -4682,7 +4880,7 @@ class TestKeywordArgs(unittest.TestCase):
 
         # Make sure we still check for non-kwarg non-defaults not following
         # defaults.
-        err_regex = "non-default argument 'z' follows default argument"
+        err_regex = "non-default argument 'z' follows default argument 'a'"
         with self.assertRaisesRegex(TypeError, err_regex):
             @dataclass
             class A:

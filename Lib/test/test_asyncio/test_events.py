@@ -1,6 +1,5 @@
 """Tests for events.py."""
 
-import collections.abc
 import concurrent.futures
 import functools
 import io
@@ -1894,6 +1893,7 @@ class SubprocessTestsMixin:
         else:
             self.assertEqual(-signal.SIGKILL, returncode)
 
+    @support.requires_subprocess()
     def test_subprocess_exec(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo.py')
 
@@ -1915,6 +1915,7 @@ class SubprocessTestsMixin:
         self.check_killed(proto.returncode)
         self.assertEqual(b'Python The Winner', proto.data[1])
 
+    @support.requires_subprocess()
     def test_subprocess_interactive(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo.py')
 
@@ -1942,6 +1943,7 @@ class SubprocessTestsMixin:
         self.loop.run_until_complete(proto.completed)
         self.check_killed(proto.returncode)
 
+    @support.requires_subprocess()
     def test_subprocess_shell(self):
         connect = self.loop.subprocess_shell(
                         functools.partial(MySubprocessProtocol, self.loop),
@@ -1958,6 +1960,7 @@ class SubprocessTestsMixin:
         self.assertEqual(proto.data[2], b'')
         transp.close()
 
+    @support.requires_subprocess()
     def test_subprocess_exitcode(self):
         connect = self.loop.subprocess_shell(
                         functools.partial(MySubprocessProtocol, self.loop),
@@ -1969,6 +1972,7 @@ class SubprocessTestsMixin:
         self.assertEqual(7, proto.returncode)
         transp.close()
 
+    @support.requires_subprocess()
     def test_subprocess_close_after_finish(self):
         connect = self.loop.subprocess_shell(
                         functools.partial(MySubprocessProtocol, self.loop),
@@ -1983,6 +1987,7 @@ class SubprocessTestsMixin:
         self.assertEqual(7, proto.returncode)
         self.assertIsNone(transp.close())
 
+    @support.requires_subprocess()
     def test_subprocess_kill(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo.py')
 
@@ -1999,6 +2004,7 @@ class SubprocessTestsMixin:
         self.check_killed(proto.returncode)
         transp.close()
 
+    @support.requires_subprocess()
     def test_subprocess_terminate(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo.py')
 
@@ -2016,6 +2022,7 @@ class SubprocessTestsMixin:
         transp.close()
 
     @unittest.skipIf(sys.platform == 'win32', "Don't have SIGHUP")
+    @support.requires_subprocess()
     def test_subprocess_send_signal(self):
         # bpo-31034: Make sure that we get the default signal handler (killing
         # the process). The parent process may have decided to ignore SIGHUP,
@@ -2040,6 +2047,7 @@ class SubprocessTestsMixin:
         finally:
             signal.signal(signal.SIGHUP, old_handler)
 
+    @support.requires_subprocess()
     def test_subprocess_stderr(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo2.py')
 
@@ -2061,6 +2069,7 @@ class SubprocessTestsMixin:
         self.assertTrue(proto.data[2].startswith(b'ERR:test'), proto.data[2])
         self.assertEqual(0, proto.returncode)
 
+    @support.requires_subprocess()
     def test_subprocess_stderr_redirect_to_stdout(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo2.py')
 
@@ -2086,6 +2095,7 @@ class SubprocessTestsMixin:
         transp.close()
         self.assertEqual(0, proto.returncode)
 
+    @support.requires_subprocess()
     def test_subprocess_close_client_stream(self):
         prog = os.path.join(os.path.dirname(__file__), 'echo3.py')
 
@@ -2120,6 +2130,7 @@ class SubprocessTestsMixin:
         self.loop.run_until_complete(proto.completed)
         self.check_killed(proto.returncode)
 
+    @support.requires_subprocess()
     def test_subprocess_wait_no_same_group(self):
         # start the new process in a new session
         connect = self.loop.subprocess_shell(
@@ -2132,6 +2143,7 @@ class SubprocessTestsMixin:
         self.assertEqual(7, proto.returncode)
         transp.close()
 
+    @support.requires_subprocess()
     def test_subprocess_exec_invalid_args(self):
         async def connect(**kwds):
             await self.loop.subprocess_exec(
@@ -2145,6 +2157,7 @@ class SubprocessTestsMixin:
         with self.assertRaises(ValueError):
             self.loop.run_until_complete(connect(shell=True))
 
+    @support.requires_subprocess()
     def test_subprocess_shell_invalid_args(self):
 
         async def connect(cmd=None, **kwds):
@@ -2315,7 +2328,7 @@ class HandleTests(test_utils.TestCase):
         h = asyncio.Handle(noop, (1, 2), self.loop)
         filename, lineno = test_utils.get_function_source(noop)
         self.assertEqual(repr(h),
-                        '<Handle noop(1, 2) at %s:%s>'
+                        '<Handle noop() at %s:%s>'
                         % (filename, lineno))
 
         # cancelled handle
@@ -2333,14 +2346,14 @@ class HandleTests(test_utils.TestCase):
         # partial function
         cb = functools.partial(noop, 1, 2)
         h = asyncio.Handle(cb, (3,), self.loop)
-        regex = (r'^<Handle noop\(1, 2\)\(3\) at %s:%s>$'
+        regex = (r'^<Handle noop\(\)\(\) at %s:%s>$'
                  % (re.escape(filename), lineno))
         self.assertRegex(repr(h), regex)
 
         # partial function with keyword args
         cb = functools.partial(noop, x=1)
         h = asyncio.Handle(cb, (2, 3), self.loop)
-        regex = (r'^<Handle noop\(x=1\)\(2, 3\) at %s:%s>$'
+        regex = (r'^<Handle noop\(\)\(\) at %s:%s>$'
                  % (re.escape(filename), lineno))
         self.assertRegex(repr(h), regex)
 
@@ -2381,6 +2394,24 @@ class HandleTests(test_utils.TestCase):
             '<Handle cancelled noop(1, 2) at %s:%s created at %s:%s>'
             % (filename, lineno, create_filename, create_lineno))
 
+        # partial function
+        cb = functools.partial(noop, 1, 2)
+        create_lineno = sys._getframe().f_lineno + 1
+        h = asyncio.Handle(cb, (3,), self.loop)
+        regex = (r'^<Handle noop\(1, 2\)\(3\) at %s:%s created at %s:%s>$'
+                 % (re.escape(filename), lineno,
+                    re.escape(create_filename), create_lineno))
+        self.assertRegex(repr(h), regex)
+
+        # partial function with keyword args
+        cb = functools.partial(noop, x=1)
+        create_lineno = sys._getframe().f_lineno + 1
+        h = asyncio.Handle(cb, (2, 3), self.loop)
+        regex = (r'^<Handle noop\(x=1\)\(2, 3\) at %s:%s created at %s:%s>$'
+                 % (re.escape(filename), lineno,
+                    re.escape(create_filename), create_lineno))
+        self.assertRegex(repr(h), regex)
+
     def test_handle_source_traceback(self):
         loop = asyncio.get_event_loop_policy().new_event_loop()
         loop.set_debug(True)
@@ -2410,8 +2441,6 @@ class HandleTests(test_utils.TestCase):
         h = loop.call_later(0, noop)
         check_source_traceback(h)
 
-    @unittest.skipUnless(hasattr(collections.abc, 'Coroutine'),
-                         'No collections.abc.Coroutine')
     def test_coroutine_like_object_debug_formatting(self):
         # Test that asyncio can format coroutines that are instances of
         # collections.abc.Coroutine, but lack cr_core or gi_code attributes

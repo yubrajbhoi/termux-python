@@ -41,6 +41,7 @@ if hasattr(os, 'register_at_fork'):
     os.register_at_fork(before=_global_shutdown_lock.acquire,
                         after_in_child=_global_shutdown_lock._at_fork_reinit,
                         after_in_parent=_global_shutdown_lock.release)
+    os.register_at_fork(after_in_child=_threads_queues.clear)
 
 
 class _WorkItem:
@@ -139,10 +140,10 @@ class ThreadPoolExecutor(_base.Executor):
             # * CPU bound task which releases GIL
             # * I/O bound task (which releases GIL, of course)
             #
-            # We use cpu_count + 4 for both types of tasks.
+            # We use process_cpu_count + 4 for both types of tasks.
             # But we limit it to 32 to avoid consuming surprisingly large resource
             # on many core machine.
-            max_workers = min(32, (os.cpu_count() or 1) + 4)
+            max_workers = min(32, (os.process_cpu_count() or 1) + 4)
         if max_workers <= 0:
             raise ValueError("max_workers must be greater than 0")
 
