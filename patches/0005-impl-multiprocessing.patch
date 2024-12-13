@@ -1,8 +1,6 @@
-diff --git a/Lib/multiprocessing/heap.py b/Lib/multiprocessing/heap.py
-index 6217dfe..3015d1f 100644
 --- a/Lib/multiprocessing/heap.py
 +++ b/Lib/multiprocessing/heap.py
-@@ -70,7 +70,7 @@ else:
+@@ -70,7 +70,7 @@
          """
  
          if sys.platform == 'linux':
@@ -11,25 +9,11 @@ index 6217dfe..3015d1f 100644
          else:
              _dir_candidates = []
  
-diff --git a/Modules/_multiprocessing/multiprocessing.c b/Modules/_multiprocessing/multiprocessing.c
-index 8f9daa5..be8406c 100644
---- a/Modules/_multiprocessing/multiprocessing.c
-+++ b/Modules/_multiprocessing/multiprocessing.c
-@@ -180,7 +180,7 @@ static PyMethodDef module_methods[] = {
-     _MULTIPROCESSING_RECV_METHODDEF
-     _MULTIPROCESSING_SEND_METHODDEF
- #endif
--#if !defined(POSIX_SEMAPHORES_NOT_ENABLED) && !defined(__ANDROID__)
-+#if !defined(POSIX_SEMAPHORES_NOT_ENABLED)
-     _MULTIPROCESSING_SEM_UNLINK_METHODDEF
- #endif
-     {NULL}
-diff --git a/Modules/_multiprocessing/posixshmem.c b/Modules/_multiprocessing/posixshmem.c
-index 88c93fe..69a2f33 100644
+
 --- a/Modules/_multiprocessing/posixshmem.c
 +++ b/Modules/_multiprocessing/posixshmem.c
-@@ -11,6 +11,72 @@ posixshmem - A Python extension that provides shm_open() and shm_unlink()
- #include <sys/mman.h>
+@@ -16,6 +16,71 @@ posixshmem - A Python extension that provides shm_open() and shm_unlink()
+ #  include <sys/mman.h>           // shm_open(), shm_unlink()
  #endif
  
 +#ifdef __ANDROID__
@@ -52,9 +36,9 @@ index 88c93fe..69a2f33 100644
 +    }
 +
 +    namelen = strlen(name);
-+    fname = (char *) alloca(sizeof("@TERMUX_PREFIX@/tmp/") - 1 + namelen + 1);
-+    memcpy(fname, "@TERMUX_PREFIX@/tmp/", sizeof("@TERMUX_PREFIX@/tmp/") - 1);
-+    memcpy(fname + sizeof("@TERMUX_PREFIX@/tmp/") - 1, name, namelen + 1);
++    fname = (char *) alloca(sizeof("/data/data/com.termux/files/usr/tmp/") - 1 + namelen + 1);
++    memcpy(fname, "/data/data/com.termux/files/usr/tmp/", sizeof("/data/data/com.termux/files/usr/tmp/") - 1);
++    memcpy(fname + sizeof("/data/data/com.termux/files/usr/tmp/") - 1, name, namelen + 1);
 +
 +    return unlink(fname);
 +}
@@ -74,9 +58,9 @@ index 88c93fe..69a2f33 100644
 +    }
 +
 +    namelen = strlen(name);
-+    fname = (char *) alloca(sizeof("@TERMUX_PREFIX@/tmp/") - 1 + namelen + 1);
-+    memcpy(fname, "@TERMUX_PREFIX@/tmp/", sizeof("@TERMUX_PREFIX@/tmp/") - 1);
-+    memcpy(fname + sizeof("@TERMUX_PREFIX@/tmp/") - 1, name, namelen + 1);
++    fname = (char *) alloca(sizeof("/data/data/com.termux/files/usr/tmp/") - 1 + namelen + 1);
++    memcpy(fname, "/data/data/com.termux/files/usr/tmp/", sizeof("/data/data/com.termux/files/usr/tmp/") - 1);
++    memcpy(fname + sizeof("/data/data/com.termux/files/usr/tmp/") - 1, name, namelen + 1);
 +
 +    fd = open(fname, oflag, mode);
 +    if (fd != -1) {
@@ -97,7 +81,6 @@ index 88c93fe..69a2f33 100644
 +    return fd;
 +}
 +#endif
-+
+ 
  /*[clinic input]
  module _posixshmem
- [clinic start generated code]*/

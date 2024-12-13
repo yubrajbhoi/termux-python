@@ -1,8 +1,6 @@
-diff --git a/Lib/http/server.py b/Lib/http/server.py
-index ca6240d..b4f3b97 100644
 --- a/Lib/http/server.py
 +++ b/Lib/http/server.py
-@@ -1183,10 +1183,6 @@ class CGIHTTPRequestHandler(SimpleHTTPRequestHandler):
+@@ -1165,10 +1165,6 @@
                  return
              # Child
              try:

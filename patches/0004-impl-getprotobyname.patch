@@ -1,8 +1,6 @@
-diff --git a/Modules/socketmodule.c b/Modules/socketmodule.c
-index de7229d..fc02d27 100644
 --- a/Modules/socketmodule.c
 +++ b/Modules/socketmodule.c
-@@ -6138,17 +6138,74 @@ otherwise any protocol will match.");
+@@ -5373,17 +5373,74 @@
     This only returns the protocol number, since the other info is
     already known or not useful (like the list of aliases). */
  
