@@ -35,7 +35,6 @@ bash ./configure --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | 
 make -j6 2>&1 | tee build.log
 make install
 
-rm ./target/bin/2to3
 rm ./target/bin/idle3
 rm ./target/bin/pydoc3
 rm ./target/bin/python3
@@ -44,4 +43,6 @@ rm ./target/bin/python3-config
 rm ./target/lib/pkgconfig/python3-embed.pc
 rm ./target/lib/pkgconfig/python3.pc
 
-mv target python-3.12.5
+rm ./target/share/man/man1/python3.1
+
+mv target python-3.13.1
