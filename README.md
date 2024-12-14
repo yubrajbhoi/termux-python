@@ -13,8 +13,9 @@ After that the package can be build with: `bash build.sh`. That will build and i
 Or you can download the binary package from here:
 
  - [python-3.13.1-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.1-aarch64.tar.zst)
+ - [python-3.13.1t-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.1t-aarch64.tar.zst)
 
-You can install that directory with `stow` like this:
+`python-3.13.1t` is the free-threaded version. You can install that directory with `stow` like this:
 
 ```
 mkdir -p $PREFIX/stow
