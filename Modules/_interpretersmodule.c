@@ -331,7 +331,7 @@ get_code_str(PyObject *arg, Py_ssize_t *len_p, PyObject **bytes_p, int *flags_p)
     int flags = 0;
 
     if (PyUnicode_Check(arg)) {
-        assert(PyUnicode_CheckExact(arg)
+        assert(PyUnicode_Check(arg)
                && (check_code_str((PyUnicodeObject *)arg) == NULL));
         codestr = PyUnicode_AsUTF8AndSize(arg, &len);
         if (codestr == NULL) {
@@ -462,7 +462,12 @@ _run_in_interpreter(PyInterpreterState *interp,
 
     // Prep and switch interpreters.
     if (_PyXI_Enter(&session, interp, shareables) < 0) {
-        assert(!PyErr_Occurred());
+        if (PyErr_Occurred()) {
+            // If an error occured at this step, it means that interp
+            // was not prepared and switched.
+            return -1;
+        }
+        // Now, apply the error from another interpreter:
         PyObject *excinfo = _PyXI_ApplyError(session.error);
         if (excinfo != NULL) {
             *p_excinfo = excinfo;
@@ -1108,7 +1113,7 @@ interp_run_string(PyObject *self, PyObject *args, PyObject *kwds)
         return NULL;
     }
 
-    script = (PyObject *)convert_script_arg(script, MODULE_NAME_STR ".exec",
+    script = (PyObject *)convert_script_arg(script, MODULE_NAME_STR ".run_string",
                                             "argument 2", "a string");
     if (script == NULL) {
         return NULL;

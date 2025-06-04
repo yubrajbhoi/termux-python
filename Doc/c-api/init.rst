@@ -203,7 +203,7 @@ to 1 and ``-bb`` sets :c:data:`Py_BytesWarningFlag` to 2.
 
    Set by the :option:`-i` option.
 
-   .. deprecated:: 3.12
+   .. deprecated-removed:: 3.12 3.15
 
 .. c:var:: int Py_IsolatedFlag
 
@@ -557,6 +557,15 @@ Initializing and finalizing the interpreter
    customized Python that always runs in isolated mode using
    :c:func:`Py_RunMain`.
 
+.. c:function:: int PyUnstable_AtExit(PyInterpreterState *interp, void (*func)(void *), void *data)
+
+   Register an :mod:`atexit` callback for the target interpreter *interp*.
+   This is similar to :c:func:`Py_AtExit`, but takes an explicit interpreter and
+   data pointer for the callback.
+
+   The :term:`GIL` must be held for *interp*.
+
+   .. versionadded:: 3.13
 
 Process-wide parameters
 =======================
@@ -585,7 +594,7 @@ Process-wide parameters
    interpreter will change the contents of this storage.
 
    Use :c:func:`Py_DecodeLocale` to decode a bytes string to get a
-   :c:expr:`wchar_*` string.
+   :c:expr:`wchar_t*` string.
 
    .. deprecated:: 3.11
 
@@ -827,7 +836,7 @@ Process-wide parameters
      directory (``"."``).
 
    Use :c:func:`Py_DecodeLocale` to decode a bytes string to get a
-   :c:expr:`wchar_*` string.
+   :c:expr:`wchar_t*` string.
 
    See also :c:member:`PyConfig.orig_argv` and :c:member:`PyConfig.argv`
    members of the :ref:`Python Initialization Configuration <init-config>`.
@@ -863,7 +872,7 @@ Process-wide parameters
    :option:`-I`.
 
    Use :c:func:`Py_DecodeLocale` to decode a bytes string to get a
-   :c:expr:`wchar_*` string.
+   :c:expr:`wchar_t*` string.
 
    See also :c:member:`PyConfig.orig_argv` and :c:member:`PyConfig.argv`
    members of the :ref:`Python Initialization Configuration <init-config>`.
@@ -889,7 +898,7 @@ Process-wide parameters
    this storage.
 
    Use :c:func:`Py_DecodeLocale` to decode a bytes string to get a
-   :c:expr:`wchar_*` string.
+   :c:expr:`wchar_t*` string.
 
    .. deprecated:: 3.11
 
@@ -1181,9 +1190,10 @@ code, or when embedding the Python interpreter:
 .. c:function:: PyThreadState* PyThreadState_Swap(PyThreadState *tstate)
 
    Swap the current thread state with the thread state given by the argument
-   *tstate*, which may be ``NULL``.  The global interpreter lock must be held
-   and is not released.
+   *tstate*, which may be ``NULL``.
 
+   The :term:`GIL` does not need to be held, but will be held upon returning
+   if *tstate* is non-``NULL``.
 
 The following functions use thread-local storage, and are not compatible
 with sub-interpreters:
@@ -1435,6 +1445,17 @@ All of the following functions must be called after :c:func:`Py_Initialize`.
    extensions should use to store interpreter-specific state information.
 
    .. versionadded:: 3.8
+
+
+.. c:function:: PyObject* PyUnstable_InterpreterState_GetMainModule(PyInterpreterState *interp)
+
+   Return a :term:`strong reference` to the ``__main__`` :ref:`module object <moduleobjects>`
+   for the given interpreter.
+
+   The caller must hold the GIL.
+
+   .. versionadded:: 3.13
+
 
 .. c:type:: PyObject* (*_PyFrameEvalFunction)(PyThreadState *tstate, _PyInterpreterFrame *frame, int throwflag)
 

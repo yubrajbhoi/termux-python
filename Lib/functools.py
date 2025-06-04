@@ -351,6 +351,9 @@ class partial:
         self.args = args
         self.keywords = kwds
 
+    __class_getitem__ = classmethod(GenericAlias)
+
+
 try:
     from _functools import partial
 except ImportError:
@@ -955,9 +958,6 @@ class singledispatchmethod:
         self.dispatcher = singledispatch(func)
         self.func = func
 
-        import weakref # see comment in singledispatch function
-        self._method_cache = weakref.WeakKeyDictionary()
-
     def register(self, cls, method=None):
         """generic_method.register(cls, func) -> func
 
@@ -966,16 +966,6 @@ class singledispatchmethod:
         return self.dispatcher.register(cls, func=method)
 
     def __get__(self, obj, cls=None):
-        if self._method_cache is not None:
-            try:
-                _method = self._method_cache[obj]
-            except TypeError:
-                self._method_cache = None
-            except KeyError:
-                pass
-            else:
-                return _method
-
         dispatch = self.dispatcher.dispatch
         funcname = getattr(self.func, '__name__', 'singledispatchmethod method')
         def _method(*args, **kwargs):
@@ -987,9 +977,6 @@ class singledispatchmethod:
         _method.__isabstractmethod__ = self.__isabstractmethod__
         _method.register = self.register
         update_wrapper(_method, self.func)
-
-        if self._method_cache is not None:
-            self._method_cache[obj] = _method
 
         return _method
 

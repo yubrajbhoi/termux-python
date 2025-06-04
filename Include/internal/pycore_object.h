@@ -105,6 +105,14 @@ PyAPI_FUNC(void) _Py_NO_RETURN _Py_FatalRefcountErrorFunc(
 #define _Py_FatalRefcountError(message) \
     _Py_FatalRefcountErrorFunc(__func__, (message))
 
+#define _PyReftracerTrack(obj, operation) \
+    do { \
+        struct _reftracer_runtime_state *tracer = &_PyRuntime.ref_tracer; \
+        if (tracer->tracer_func != NULL) { \
+            void *data = tracer->tracer_data; \
+            tracer->tracer_func((obj), (operation), data); \
+        } \
+    } while(0)
 
 #ifdef Py_REF_DEBUG
 /* The symbol is only exposed in the API for the sake of extensions
@@ -147,11 +155,32 @@ static inline void _Py_RefcntAdd(PyObject* op, Py_ssize_t n)
         _Py_atomic_add_ssize(&op->ob_ref_shared, (n << _Py_REF_SHARED_SHIFT));
     }
 #endif
+    // Although the ref count was increased by `n` (which may be greater than 1)
+    // it is only a single increment (i.e. addition) operation, so only 1 refcnt
+    // increment operation is counted.
+    _Py_INCREF_STAT_INC();
 }
 #define _Py_RefcntAdd(op, n) _Py_RefcntAdd(_PyObject_CAST(op), n)
 
 extern void _Py_SetImmortal(PyObject *op);
 extern void _Py_SetImmortalUntracked(PyObject *op);
+
+// Checks if an object has a single, unique reference. If the caller holds a
+// unique reference, it may be able to safely modify the object in-place.
+static inline int
+_PyObject_IsUniquelyReferenced(PyObject *ob)
+{
+#if !defined(Py_GIL_DISABLED)
+    return Py_REFCNT(ob) == 1;
+#else
+    // NOTE: the entire ob_ref_shared field must be zero, including flags, to
+    // ensure that other threads cannot concurrently create new references to
+    // this object.
+    return (_Py_IsOwnedByCurrentThread(ob) &&
+            _Py_atomic_load_uint32_relaxed(&ob->ob_ref_local) == 1 &&
+            _Py_atomic_load_ssize_relaxed(&ob->ob_ref_shared) == 0);
+#endif
+}
 
 // Makes an immortal object mortal again with the specified refcnt. Should only
 // be used during runtime finalization.
@@ -216,11 +245,7 @@ _Py_DECREF_SPECIALIZED(PyObject *op, const destructor destruct)
 #ifdef Py_TRACE_REFS
         _Py_ForgetReference(op);
 #endif
-        struct _reftracer_runtime_state *tracer = &_PyRuntime.ref_tracer;
-        if (tracer->tracer_func != NULL) {
-            void* data = tracer->tracer_data;
-            tracer->tracer_func(op, PyRefTracer_DESTROY, data);
-        }
+        _PyReftracerTrack(op, PyRefTracer_DESTROY);
         destruct(op);
     }
 }
@@ -572,7 +597,51 @@ _PyObject_SetMaybeWeakref(PyObject *op)
     }
 }
 
+extern int _PyObject_ResurrectEndSlow(PyObject *op);
 #endif
+
+// Temporarily resurrects an object during deallocation. The refcount is set
+// to one.
+static inline void
+_PyObject_ResurrectStart(PyObject *op)
+{
+    assert(Py_REFCNT(op) == 0);
+#ifdef Py_REF_DEBUG
+    _Py_IncRefTotal(_PyThreadState_GET());
+#endif
+#ifdef Py_GIL_DISABLED
+    _Py_atomic_store_uintptr_relaxed(&op->ob_tid, _Py_ThreadId());
+    _Py_atomic_store_uint32_relaxed(&op->ob_ref_local, 1);
+    _Py_atomic_store_ssize_relaxed(&op->ob_ref_shared, 0);
+#else
+    Py_SET_REFCNT(op, 1);
+#endif
+}
+
+// Undoes an object resurrection by decrementing the refcount without calling
+// _Py_Dealloc(). Returns 0 if the object is dead (the normal case), and
+// deallocation should continue. Returns 1 if the object is still alive.
+static inline int
+_PyObject_ResurrectEnd(PyObject *op)
+{
+#ifdef Py_REF_DEBUG
+    _Py_DecRefTotal(_PyThreadState_GET());
+#endif
+#ifndef Py_GIL_DISABLED
+    Py_SET_REFCNT(op, Py_REFCNT(op) - 1);
+    return Py_REFCNT(op) != 0;
+#else
+    uint32_t local = _Py_atomic_load_uint32_relaxed(&op->ob_ref_local);
+    Py_ssize_t shared = _Py_atomic_load_ssize_acquire(&op->ob_ref_shared);
+    if (_Py_IsOwnedByCurrentThread(op) && local == 1 && shared == 0) {
+        // Fast-path: object has a single refcount and is owned by this thread
+        _Py_atomic_store_uint32_relaxed(&op->ob_ref_local, 0);
+        return 0;
+    }
+    // Slow-path: object has a shared refcount or is not owned by this thread
+    return _PyObject_ResurrectEndSlow(op);
+#endif
+}
 
 /* Tries to incref op and returns 1 if successful or 0 otherwise. */
 static inline int

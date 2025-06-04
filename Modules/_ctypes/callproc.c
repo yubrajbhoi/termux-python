@@ -1016,11 +1016,12 @@ static PyObject *GetResult(ctypes_state *st,
     if (info->getfunc && !_ctypes_simple_instance(st, restype)) {
         retval = info->getfunc(result, info->size);
         /* If restype is py_object (detected by comparing getfunc with
-           O_get), we have to call Py_DECREF because O_get has already
-           called Py_INCREF.
+           O_get), we have to call Py_XDECREF because O_get has already
+           called Py_INCREF, unless the result was NULL, in which case
+           an error is set (by the called function, or by O_get).
         */
         if (info->getfunc == _ctypes_get_fielddesc("O")->getfunc) {
-            Py_DECREF(retval);
+            Py_XDECREF(retval);
         }
     }
     else {
@@ -1579,10 +1580,11 @@ static PyObject *py_dl_open(PyObject *self, PyObject *args)
     Py_XDECREF(name2);
     if (!handle) {
         const char *errmsg = dlerror();
-        if (!errmsg)
-            errmsg = "dlopen() error";
-        PyErr_SetString(PyExc_OSError,
-                               errmsg);
+        if (errmsg) {
+            _PyErr_SetLocaleString(PyExc_OSError, errmsg);
+            return NULL;
+        }
+        PyErr_SetString(PyExc_OSError, "dlopen() error");
         return NULL;
     }
     return PyLong_FromVoidPtr(handle);
@@ -1595,8 +1597,12 @@ static PyObject *py_dl_close(PyObject *self, PyObject *args)
     if (!PyArg_ParseTuple(args, "O&:dlclose", &_parse_voidp, &handle))
         return NULL;
     if (dlclose(handle)) {
-        PyErr_SetString(PyExc_OSError,
-                               dlerror());
+        const char *errmsg = dlerror();
+        if (errmsg) {
+            _PyErr_SetLocaleString(PyExc_OSError, errmsg);
+            return NULL;
+        }
+        PyErr_SetString(PyExc_OSError, "dlclose() error");
         return NULL;
     }
     Py_RETURN_NONE;
@@ -1630,21 +1636,14 @@ static PyObject *py_dl_sym(PyObject *self, PyObject *args)
     if (ptr) {
         return PyLong_FromVoidPtr(ptr);
     }
-	#ifdef USE_DLERROR
-    const char *dlerr = dlerror();
-    if (dlerr) {
-        PyObject *message = PyUnicode_DecodeLocale(dlerr, "surrogateescape");
-        if (message) {
-            PyErr_SetObject(PyExc_OSError, message);
-            Py_DECREF(message);
-            return NULL;
-        }
-        // Ignore errors from PyUnicode_DecodeLocale,
-        // fall back to the generic error below.
-        PyErr_Clear();
+    #ifdef USE_DLERROR
+    const char *errmsg = dlerror();
+    if (errmsg) {
+        _PyErr_SetLocaleString(PyExc_OSError, errmsg);
+        return NULL;
     }
-	#endif
-	#undef USE_DLERROR
+    #endif
+    #undef USE_DLERROR
     PyErr_Format(PyExc_OSError, "symbol '%s' not found", name);
     return NULL;
 }

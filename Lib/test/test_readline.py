@@ -1,6 +1,7 @@
 """
 Very minimal unittests for parts of the readline module.
 """
+import codecs
 import locale
 import os
 import sys
@@ -114,6 +115,14 @@ class TestHistoryManipulation (unittest.TestCase):
         # write_history_file can create the target
         readline.write_history_file(hfilename)
 
+        # Negative values should be disallowed
+        with self.assertRaises(ValueError):
+            readline.append_history_file(-42, hfilename)
+
+        # See gh-122431, using the minimum signed integer value caused a segfault
+        with self.assertRaises(ValueError):
+            readline.append_history_file(-2147483648, hfilename)
+
     def test_nonascii_history(self):
         readline.clear_history()
         try:
@@ -220,6 +229,13 @@ print("History length:", readline.get_current_history_length())
             # writing and reading non-ASCII bytes into/from a TTY works, but
             # readline or ncurses ignores non-ASCII bytes on read.
             self.skipTest(f"the LC_CTYPE locale is {loc!r}")
+        if sys.flags.utf8_mode:
+            encoding = locale.getencoding()
+            encoding = codecs.lookup(encoding).name  # normalize the name
+            if encoding != "utf-8":
+                # gh-133711: The Python UTF-8 Mode ignores the LC_CTYPE locale
+                # and always use the UTF-8 encoding.
+                self.skipTest(f"the LC_CTYPE encoding is {encoding!r}")
 
         try:
             readline.add_history("\xEB\xEF")

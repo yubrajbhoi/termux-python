@@ -2,6 +2,7 @@ import sys
 import unicodedata
 import unittest
 import urllib.parse
+from test.support.testcase import ExtraAssertions
 
 RFC1808_BASE = "http://a/b/c/d;p?q#f"
 RFC2396_BASE = "http://a/b/c/d;p?q"
@@ -101,7 +102,7 @@ parse_qs_test_cases = [
     (b"%81=%A9", {b'\x81': [b'\xa9']}),
 ]
 
-class UrlParseTestCase(unittest.TestCase):
+class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
 
     def checkRoundtrips(self, url, parsed, split, url2=None):
         if url2 is None:
@@ -1033,14 +1034,13 @@ class UrlParseTestCase(unittest.TestCase):
                 with self.subTest(url=url, function=func):
                     result = func(url, allow_fragments=False)
                     self.assertEqual(result.fragment, "")
-                    self.assertTrue(
-                            getattr(result, attr).endswith("#" + expected_frag))
+                    self.assertEndsWith(getattr(result, attr),
+                                        "#" + expected_frag)
                     self.assertEqual(func(url, "", False).fragment, "")
 
                     result = func(url, allow_fragments=True)
                     self.assertEqual(result.fragment, expected_frag)
-                    self.assertFalse(
-                            getattr(result, attr).endswith(expected_frag))
+                    self.assertNotEndsWith(getattr(result, attr), expected_frag)
                     self.assertEqual(func(url, "", True).fragment,
                                      expected_frag)
                     self.assertEqual(func(url).fragment, expected_frag)
@@ -1273,16 +1273,51 @@ class UrlParseTestCase(unittest.TestCase):
         self.assertRaises(ValueError, urllib.parse.urlsplit, 'Scheme://user@[0439:23af::2309::fae7:1234]/Path?Query')
         self.assertRaises(ValueError, urllib.parse.urlsplit, 'Scheme://user@[0439:23af:2309::fae7:1234:2342:438e:192.0.2.146]/Path?Query')
         self.assertRaises(ValueError, urllib.parse.urlsplit, 'Scheme://user@]v6a.ip[/Path')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[v6a.ip]')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[v6a.ip].suffix')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[v6a.ip]/')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[v6a.ip].suffix/')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[v6a.ip]?')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[v6a.ip].suffix?')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]/')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix/')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]?')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix?')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]:a')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix:a')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]:a1')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix:a1')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]:1a')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix:1a')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]:')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[::1].suffix:/')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[::1]:?')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://user@prefix.[v6a.ip]')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://user@[v6a.ip].suffix')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://[v6a.ip')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://v6a.ip]')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://]v6a.ip[')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://]v6a.ip')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://v6a.ip[')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix.[v6a.ip')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://v6a.ip].suffix')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix]v6a.ip[suffix')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://prefix]v6a.ip')
+        self.assertRaises(ValueError, urllib.parse.urlsplit, 'scheme://v6a.ip[suffix')
 
     def test_splitting_bracketed_hosts(self):
-        p1 = urllib.parse.urlsplit('scheme://user@[v6a.ip]/path?query')
+        p1 = urllib.parse.urlsplit('scheme://user@[v6a.ip]:1234/path?query')
         self.assertEqual(p1.hostname, 'v6a.ip')
         self.assertEqual(p1.username, 'user')
         self.assertEqual(p1.path, '/path')
+        self.assertEqual(p1.port, 1234)
         p2 = urllib.parse.urlsplit('scheme://user@[0439:23af:2309::fae7%test]/path?query')
         self.assertEqual(p2.hostname, '0439:23af:2309::fae7%test')
         self.assertEqual(p2.username, 'user')
         self.assertEqual(p2.path, '/path')
+        self.assertIs(p2.port, None)
         p3 = urllib.parse.urlsplit('scheme://user@[0439:23af:2309::fae7:1234:192.0.2.146%test]/path?query')
         self.assertEqual(p3.hostname, '0439:23af:2309::fae7:1234:192.0.2.146%test')
         self.assertEqual(p3.username, 'user')

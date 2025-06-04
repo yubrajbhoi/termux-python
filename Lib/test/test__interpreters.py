@@ -557,7 +557,7 @@ class CommonTests(TestBase):
         self.id = _interpreters.create()
 
     def test_signatures(self):
-        # for method in ['exec', 'run_string', 'run_func']:
+        # See https://github.com/python/cpython/issues/126654
         msg = "expected 'shared' to be a dict"
         with self.assertRaisesRegex(TypeError, msg):
             _interpreters.exec(self.id, 'a', 1)
@@ -567,6 +567,17 @@ class CommonTests(TestBase):
             _interpreters.run_string(self.id, 'a', shared=1)
         with self.assertRaisesRegex(TypeError, msg):
             _interpreters.run_func(self.id, lambda: None, shared=1)
+
+    def test_invalid_shared_encoding(self):
+        # See https://github.com/python/cpython/issues/127196
+        bad_shared = {"\uD82A": 0}
+        msg = 'surrogates not allowed'
+        with self.assertRaisesRegex(UnicodeEncodeError, msg):
+            _interpreters.exec(self.id, 'a', shared=bad_shared)
+        with self.assertRaisesRegex(UnicodeEncodeError, msg):
+            _interpreters.run_string(self.id, 'a', shared=bad_shared)
+        with self.assertRaisesRegex(UnicodeEncodeError, msg):
+            _interpreters.run_func(self.id, lambda: None, shared=bad_shared)
 
 
 class RunStringTests(TestBase):
@@ -733,6 +744,12 @@ class RunStringTests(TestBase):
     def test_bytes_for_script(self):
         with self.assertRaises(TypeError):
             _interpreters.run_string(self.id, b'print("spam")')
+
+    def test_str_subclass_string(self):
+        class StrSubclass(str): pass
+
+        output = _run_output(self.id, StrSubclass('print(1 + 2)'))
+        self.assertEqual(output, '3\n')
 
     def test_with_shared(self):
         r, w = os.pipe()
