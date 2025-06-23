@@ -2,6 +2,71 @@
 Python News
 +++++++++++
 
+What's New in Python 3.13.5 final?
+==================================
+
+*Release date: 2025-06-11*
+
+Windows
+-------
+
+- gh-135151: Avoid distributing modified :file:`pyconfig.h` in the
+  traditional installer. Extension module builds must always specify
+  ``Py_GIL_DISABLED`` when targeting the free-threaded runtime.
+
+Tests
+-----
+
+- gh-135120: Add :func:`!test.support.subTests`.
+
+Library
+-------
+
+- gh-133967: Do not normalize :mod:`locale` name 'C.UTF-8' to 'en_US.UTF-8'.
+
+- gh-135326: Restore support of integer-like objects with :meth:`!__index__`
+  in :func:`random.getrandbits`.
+
+- gh-135321: Raise a correct exception for values greater than 0x7fffffff
+  for the ``BINSTRING`` opcode in the C implementation of :mod:`pickle`.
+
+- gh-135276: Backported bugfixes in zipfile.Path from zipp 3.23. Fixed
+  ``.name``, ``.stem`` and other basename-based properties on Windows when
+  working with a zipfile on disk.
+
+- gh-134151: :mod:`email`: Fix :exc:`TypeError` in
+  :func:`email.utils.decode_params` when sorting :rfc:`2231` continuations
+  that contain an unnumbered section.
+
+- gh-134152: :mod:`email`: Fix parsing of email message ID with invalid
+  domain.
+
+- gh-127081: Fix libc thread safety issues with :mod:`os` by replacing
+  ``getlogin`` with ``getlogin_r`` re-entrant version.
+
+- gh-131884: Fix formatting issues in :func:`json.dump` when both *indent*
+  and *skipkeys* are used.
+
+Core and Builtins
+-----------------
+
+- gh-135171: Roll back changes to generator and list comprehensions that
+  went into 3.13.4 to fix GH-127682, but which involved semantic and
+  bytecode changes not appropriate for a bugfix release.
+
+C API
+-----
+
+- gh-134989: Fix ``Py_RETURN_NONE``, ``Py_RETURN_TRUE`` and
+  ``Py_RETURN_FALSE`` macros in the limited C API 3.11 and older: don't
+  treat ``Py_None``, ``Py_True`` and ``Py_False`` as immortal. Patch by
+  Victor Stinner.
+
+- gh-134989: Implement :c:func:`PyObject_DelAttr` and
+  :c:func:`PyObject_DelAttrString` as macros in the limited C API 3.12 and
+  older. Patch by Victor Stinner.
+
+
 What's New in Python 3.13.4 final?
 ==================================
 

@@ -55,7 +55,6 @@ knownfiles = [
     "/usr/local/lib/netscape/mime.types",
     "/usr/local/etc/httpd/conf/mime.types",     # Apache 1.2
     "/usr/local/etc/mime.types",                # Apache 1.3
-    "/data/data/com.termux/files/usr/etc/mime.types",           # Termux
     ]
 
 inited = False
