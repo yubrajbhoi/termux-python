@@ -7006,6 +7006,8 @@ rm -f conftest.out
 { printf "%s\n" "$as_me:${as_lineno-$LINENO}: checking for multiarch" >&5
 printf %s "checking for multiarch... " >&6; }
 case $ac_sys_system in #(
+  Linux-android) :
+    MULTIARCH="" ;; #(
   Darwin*) :
     MULTIARCH="" ;; #(
   iOS) :
@@ -13068,6 +13070,7 @@ then
 		 then CCSHARED="-fPIC";
 		 else CCSHARED="+z";
 		 fi;;
+	Linux-android*) CCSHARED="-fPIC";;
 	Linux*|GNU*) CCSHARED="-fPIC";;
 	Emscripten*|WASI*)
 		if test "x$enable_wasm_dynamic_linking" = xyes
@@ -19262,7 +19265,6 @@ printf "%s\n" "$ac_cv_func_link" >&6; }
   if test "x$ac_cv_func_link" = xyes
 then :
 
-printf "%s\n" "#define HAVE_LINK 1" >>confdefs.h
 
 fi
 
