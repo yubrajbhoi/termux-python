@@ -24,3 +24,5 @@ mv python-3.13.5 $PREFIX/stow/
 cd $PREFIX/stow
 stow -v --stow python-3.13.5
 ```
+
+To install `pip` for this python installation you need to run `python3.13 -m ensurepip` once. After that you can use `pip` normally.
