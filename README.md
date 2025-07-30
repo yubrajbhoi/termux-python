@@ -10,14 +10,14 @@ On some devices the binary packages might not work. In that case you will have t
 
 First make sure you have these dependencies installed with `apt` or `pkg`:
 
- - `python`, this will install all dependencies needed to build `python-3.13.5`
+ - `python`, this will install all dependencies needed to build `python-3.13.*`
  - `build-essential`, this will install `clang`, `make` etc
  - `stow`, to install the package after building it
  - `libandroid-spawn`, to get `spawn.h` header file
 
 After that the package can be build with: `bash build.sh`. That will build and install it in `python-3.13.5` directory.
 
-Or you can download the binary package from here:
+Or you can download a binary package from here:
 
 ## Binaries
 
@@ -43,6 +43,12 @@ dpkg -i *.deb
 apt -f install
 ```
 
+These deb packages can be uninstalled as usual like this:
+
+```
+apt remove python313
+```
+
 You can also install with stow, but it requires a little technical knowledge about how Linux directories work. First download and untar a stow package. You can also use the built from source directory. Replace `package_name` below with the directory use get.
 
 ```
@@ -50,6 +56,12 @@ mkdir -p $PREFIX/stow
 mv package_name $PREFIX/stow/
 cd $PREFIX/stow
 stow -v --stow package_name
+```
+
+The packages installed with stow can be uninstalled like this:
+
+```
+stow -v --delete package_name
 ```
 
 ## Verify your installation
