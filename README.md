@@ -2,7 +2,13 @@
 
 This is a fork of Python-3.13.5 with Termux patches (`termux.patch`) applied.
 
-But first make sure you have these dependencies installed with `apt` or `pkg`:
+You can build from source or download the DEB packages from below. Unless you know how to build on Linux I would recommend the binary packages.
+
+On some devices the binary packages might not work. In that case you will have to build from source.
+
+## Build from source
+
+First make sure you have these dependencies installed with `apt` or `pkg`:
 
  - `python`, this will install all dependencies needed to build `python-3.13.5`
  - `build-essential`, this will install `clang`, `make` etc
@@ -13,16 +19,45 @@ After that the package can be build with: `bash build.sh`. That will build and i
 
 Or you can download the binary package from here:
 
+## Binaries
+
+All the files appended with `t` are the free-threaded version.
+
+### DEB Packages
+
+ - [python313_3.13.5_aarch64.deb](https://public.8018985.xyz/python313_3.13.5_aarch64.deb)
+ - [python313t_3.13.5t_aarch64.deb](https://public.8018985.xyz/python313t_3.13.5t_aarch64.deb)
+
+### Stow packages
+
  - [python-3.13.5-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.5-aarch64.tar.zst)
  - [python-3.13.5t-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.5t-aarch64.tar.zst)
 
-`python-3.13.5t` is the free-threaded version. You can install that directory with `stow` like this:
+## How to install
+
+The easiest way to install is with the DEB files. Simply download a package and install like this:
+
+```
+dpkg -i *.deb
+# To install missing deps
+apt -f install
+```
+
+You can also install with stow, but it requires a little technical knowledge about how Linux directories work. First download and untar a stow package. You can also use the built from source directory. Replace `package_name` below with the directory use get.
 
 ```
 mkdir -p $PREFIX/stow
-mv python-3.13.5 $PREFIX/stow/
+mv package_name $PREFIX/stow/
 cd $PREFIX/stow
-stow -v --stow python-3.13.5
+stow -v --stow package_name
 ```
 
+## Verify your installation
+
+If you are using the free-threaded version append a `t` to every command. For example `python3.13` with `python3.13t`.
+
 To install `pip` for this python installation you need to run `python3.13 -m ensurepip` once. After that you can use `pip` normally.
+
+```
+python3.13 --version
+```
