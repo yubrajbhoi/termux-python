@@ -258,10 +258,12 @@
  
  /*[clinic input]
  module _posixshmem
+diff --git a/Modules/posixmodule.c b/Modules/posixmodule.c
+index 904c2f5..2f3448e 100644
 --- a/Modules/posixmodule.c
 +++ b/Modules/posixmodule.c
-@@ -310,7 +310,7 @@ corresponding Unix manual entries for more information on calls.");
- #endif
+@@ -244,7 +244,7 @@
+ 
  
  #if defined(HAVE_SYS_XATTR_H)
 -#  if defined(HAVE_LINUX_LIMITS_H) && !defined(__FreeBSD_kernel__) && !defined(__GNU__)
