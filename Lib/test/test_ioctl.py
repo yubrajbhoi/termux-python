@@ -165,7 +165,8 @@ class IoctlTestsPty(unittest.TestCase):
         os.write(wfd, b'ABCDEF')
         self.assertEqual(os.read(rfd, 1024), b'ABCDEF')
 
-    @unittest.skipUnless(sys.platform == 'linux', 'only works on Linux')
+    @support.skip_android_selinux('tcflow')
+    @unittest.skipUnless(sys.platform in ('linux', 'android'), 'only works on Linux')
     @unittest.skipUnless(hasattr(termios, 'TCXONC'), 'requires termios.TCXONC')
     def test_ioctl_suspend_and_resume_output(self):
         wfd = self.slave_fd
@@ -194,19 +195,12 @@ class IoctlTestsPty(unittest.TestCase):
                             'output was not resumed')
             self.assertEqual(os.read(rfd, 1024), b'def')
 
-    def test_ioctl_signed_unsigned_code_param(self):
-        if termios.TIOCSWINSZ < 0:
-            set_winsz_opcode_maybe_neg = termios.TIOCSWINSZ
-            set_winsz_opcode_pos = termios.TIOCSWINSZ & 0xffffffff
-        else:
-            set_winsz_opcode_pos = termios.TIOCSWINSZ
-            set_winsz_opcode_maybe_neg, = struct.unpack("i",
-                    struct.pack("I", termios.TIOCSWINSZ))
-
-        our_winsz = struct.pack("HHHH",80,25,0,0)
-        # test both with a positive and potentially negative ioctl code
-        new_winsz = fcntl.ioctl(self.master_fd, set_winsz_opcode_pos, our_winsz)
-        new_winsz = fcntl.ioctl(self.master_fd, set_winsz_opcode_maybe_neg, our_winsz)
+    def test_ioctl_set_window_size(self):
+        # (rows, columns, xpixel, ypixel)
+        our_winsz = struct.pack("HHHH", 20, 40, 0, 0)
+        result = fcntl.ioctl(self.master_fd, termios.TIOCSWINSZ, our_winsz)
+        new_winsz = struct.unpack("HHHH", result)
+        self.assertEqual(new_winsz[:2], (20, 40))
 
     @unittest.skipUnless(hasattr(fcntl, 'FICLONE'), 'need fcntl.FICLONE')
     def test_bad_fd(self):

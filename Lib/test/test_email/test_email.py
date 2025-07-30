@@ -1,4 +1,4 @@
-# Copyright (C) 2001-2010 Python Software Foundation
+# Copyright (C) 2001 Python Software Foundation
 # Contact: email-sig@python.org
 # email package unit tests
 
@@ -745,6 +745,31 @@ class TestMessageAPI(TestEmailBase):
         self.assertEqual(
             "attachment; filename*=utf-8''Fu%C3%9Fballer%20%5Bfilename%5D.ppt",
             msg['Content-Disposition'])
+
+    def test_invalid_header_names(self):
+        invalid_headers = [
+            ('Invalid Header', 'contains space'),
+            ('Tab\tHeader', 'contains tab'),
+            ('Colon:Header', 'contains colon'),
+            ('', 'Empty name'),
+            (' LeadingSpace', 'starts with space'),
+            ('TrailingSpace ', 'ends with space'),
+            ('Header\x7F', 'Non-ASCII character'),
+            ('Header\x80', 'Extended ASCII'),
+        ]
+        for policy in (email.policy.default, email.policy.compat32):
+            for setter in (Message.__setitem__, Message.add_header):
+                for name, value in invalid_headers:
+                    self.do_test_invalid_header_names(
+                        policy, setter,name, value)
+
+    def do_test_invalid_header_names(self, policy, setter, name, value):
+        with self.subTest(policy=policy, setter=setter, name=name, value=value):
+            message = Message(policy=policy)
+            pattern = r'(?i)(?=.*invalid)(?=.*header)(?=.*name)'
+            with self.assertRaisesRegex(ValueError, pattern) as cm:
+                 setter(message, name, value)
+            self.assertIn(f"{name!r}", str(cm.exception))
 
     def test_binary_quopri_payload(self):
         for charset in ('latin-1', 'ascii'):
@@ -2542,6 +2567,18 @@ Re: =?mac-iceland?q?r=8Aksm=9Arg=8Cs?= baz foo bar =?mac-iceland?q?r=8Aksm?=
                          ''.join(s.splitlines()))
         self.assertEqual(str(make_header(decode_header(s))),
                          '"Müller T" <T.Mueller@xxx.com>')
+
+    def test_unencoded_ascii(self):
+        # bpo-22833/gh-67022: returns [(str, None)] rather than [(bytes, None)]
+        s = 'header without encoded words'
+        self.assertEqual(decode_header(s),
+            [('header without encoded words', None)])
+
+    def test_unencoded_utf8(self):
+        # bpo-22833/gh-67022: returns [(str, None)] rather than [(bytes, None)]
+        s = 'header with unexpected non ASCII caract\xe8res'
+        self.assertEqual(decode_header(s),
+            [('header with unexpected non ASCII caract\xe8res', None)])
 
 
 # Test the MIMEMessage class

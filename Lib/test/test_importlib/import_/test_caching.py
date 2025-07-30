@@ -1,6 +1,5 @@
 """Test that sys.modules is used properly by import."""
 from test.test_importlib import util
-from test.support.testcase import ExtraAssertions
 import sys
 from types import MethodType
 import unittest
@@ -46,7 +45,7 @@ class UseCache:
  ) = util.test_both(UseCache, __import__=util.__import__)
 
 
-class ImportlibUseCache(UseCache, unittest.TestCase, ExtraAssertions):
+class ImportlibUseCache(UseCache, unittest.TestCase):
 
     # Pertinent only to PEP 302; exec_module() doesn't return a module.
 

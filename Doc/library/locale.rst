@@ -317,6 +317,15 @@ The :mod:`locale` module defines the following exception and functions:
       to represent the values 0 to 99 in a locale-specific way.
       In most locales this is an empty string.
 
+   The function temporarily sets the ``LC_CTYPE`` locale to the locale
+   of the category that determines the requested value (``LC_TIME``,
+   ``LC_NUMERIC``, ``LC_MONETARY`` or ``LC_MESSAGES``) if locales are
+   different and the resulting string is non-ASCII.
+   This temporary change affects other threads.
+
+   .. versionchanged:: 3.14
+      The function now temporarily sets the ``LC_CTYPE`` locale in some cases.
+
 
 .. function:: getdefaultlocale([envvars])
 

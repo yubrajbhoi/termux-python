@@ -243,6 +243,9 @@ numeric literal yields an imaginary number (a complex number with a zero real
 part) which you can add to an integer or float to get a complex number with real
 and imaginary parts.
 
+The constructors :func:`int`, :func:`float`, and
+:func:`complex` can be used to produce numbers of a specific type.
+
 .. index::
    single: arithmetic
    pair: built-in function; int
@@ -262,12 +265,15 @@ and imaginary parts.
 
 Python fully supports mixed arithmetic: when a binary arithmetic operator has
 operands of different numeric types, the operand with the "narrower" type is
-widened to that of the other, where integer is narrower than floating point,
-which is narrower than complex. A comparison between numbers of different types
-behaves as though the exact values of those numbers were being compared. [2]_
+widened to that of the other, where integer is narrower than floating point.
+Arithmetic with complex and real operands is defined by the usual mathematical
+formula, for example::
 
-The constructors :func:`int`, :func:`float`, and
-:func:`complex` can be used to produce numbers of a specific type.
+    x + complex(u, v) = complex(x + u, v)
+    x * complex(u, v) = complex(x * u, x * v)
+
+A comparison between numbers of different types behaves as though the exact
+values of those numbers were being compared. [2]_
 
 All numeric types (except complex) support the following operations (for priorities of
 the operations, see :ref:`operator-summary`):
@@ -625,6 +631,23 @@ Additional Methods on Float
 The float type implements the :class:`numbers.Real` :term:`abstract base
 class`. float also has the following additional methods.
 
+.. classmethod:: float.from_number(x)
+
+   Class method to return a floating-point number constructed from a number *x*.
+
+   If the argument is an integer or a floating-point number, a
+   floating-point number with the same value (within Python's floating-point
+   precision) is returned.  If the argument is outside the range of a Python
+   float, an :exc:`OverflowError` will be raised.
+
+   For a general Python object ``x``, ``float.from_number(x)`` delegates to
+   ``x.__float__()``.
+   If :meth:`~object.__float__` is not defined then it falls back
+   to :meth:`~object.__index__`.
+
+   .. versionadded:: 3.14
+
+
 .. method:: float.as_integer_ratio()
 
    Return a pair of integers whose ratio is exactly equal to the
@@ -701,6 +724,25 @@ hexadecimal string representing the same number::
 
    >>> float.hex(3740.0)
    '0x1.d380000000000p+11'
+
+
+Additional Methods on Complex
+-----------------------------
+
+The :class:`!complex` type implements the :class:`numbers.Complex`
+:term:`abstract base class`.
+:class:`!complex` also has the following additional methods.
+
+.. classmethod:: complex.from_number(x)
+
+   Class method to convert a number to a complex number.
+
+   For a general Python object ``x``, ``complex.from_number(x)`` delegates to
+   ``x.__complex__()``.  If :meth:`~object.__complex__` is not defined then it falls back
+   to :meth:`~object.__float__`.  If :meth:`!__float__` is not defined then it falls back
+   to :meth:`~object.__index__`.
+
+   .. versionadded:: 3.14
 
 
 .. _numeric-hash:
@@ -1181,7 +1223,9 @@ accepts integers that meet the value restriction ``0 <= x <= 255``).
 |                              | is replaced by the contents of |                     |
 |                              | the iterable *t*               |                     |
 +------------------------------+--------------------------------+---------------------+
-| ``del s[i:j]``               | same as ``s[i:j] = []``        |                     |
+| ``del s[i:j]``               | removes the elements of        |                     |
+|                              | ``s[i:j]`` from the list       |                     |
+|                              | (same as ``s[i:j] = []``)      |                     |
 +------------------------------+--------------------------------+---------------------+
 | ``s[i:j:k] = t``             | the elements of ``s[i:j:k]``   | \(1)                |
 |                              | are replaced by those of *t*   |                     |
@@ -1511,6 +1555,100 @@ objects that compare equal might have different :attr:`~range.start`,
    single: str (built-in class); (see also string)
    pair: object; string
 
+.. _text-methods-summary:
+
+Text and Binary Sequence Type Methods Summary
+=============================================
+The following table summarizes the text and binary sequence types methods by
+category.
+
+
++--------------------------+-------------------------------------------+---------------------------------------------------+
+| Category                 |  :class:`str` methods                     |   :class:`bytes` and :class:`bytearray` methods   |
++==========================+===========================================+===================================================+
+| Formatting               |  :meth:`str.format`                       |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.format_map`                   |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :ref:`f-strings`                         |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :ref:`old-string-formatting`             |  :ref:`bytes-formatting`                          |
++--------------------------+------------------+------------------------+--------------------+------------------------------+
+| Searching and Replacing  | :meth:`str.find` | :meth:`str.rfind`      | :meth:`bytes.find` | :meth:`bytes.rfind`          |
+|                          +------------------+------------------------+--------------------+------------------------------+
+|                          | :meth:`str.index`| :meth:`str.rindex`     | :meth:`bytes.index`| :meth:`bytes.rindex`         |
+|                          +------------------+------------------------+--------------------+------------------------------+
+|                          |  :meth:`str.startswith`                   |  :meth:`bytes.startswith`                         |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.endswith`                     |  :meth:`bytes.endswith`                           |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.count`                        |  :meth:`bytes.count`                              |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.replace`                      |  :meth:`bytes.replace`                            |
++--------------------------+-------------------+-----------------------+---------------------+-----------------------------+
+| Splitting and Joining    | :meth:`str.split` | :meth:`str.rsplit`    | :meth:`bytes.split` | :meth:`bytes.rsplit`        |
+|                          +-------------------+-----------------------+---------------------+-----------------------------+
+|                          |  :meth:`str.splitlines`                   |  :meth:`bytes.splitlines`                         |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.partition`                    |  :meth:`bytes.partition`                          |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.rpartition`                   |  :meth:`bytes.rpartition`                         |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.join`                         |  :meth:`bytes.join`                               |
++--------------------------+-------------------------------------------+---------------------------------------------------+
+| String Classification    |  :meth:`str.isalpha`                      |  :meth:`bytes.isalpha`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isdecimal`                    |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isdigit`                      |  :meth:`bytes.isdigit`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isnumeric`                    |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isalnum`                      |  :meth:`bytes.isalnum`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isidentifier`                 |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.islower`                      |  :meth:`bytes.islower`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isupper`                      |  :meth:`bytes.isupper`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.istitle`                      |  :meth:`bytes.istitle`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isspace`                      |  :meth:`bytes.isspace`                            |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.isprintable`                  |                                                   |
++--------------------------+-------------------------------------------+---------------------------------------------------+
+| Case Manipulation        |  :meth:`str.lower`                        |  :meth:`bytes.lower`                              |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.upper`                        |  :meth:`bytes.upper`                              |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.casefold`                     |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.capitalize`                   |  :meth:`bytes.capitalize`                         |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.title`                        |  :meth:`bytes.title`                              |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.swapcase`                     |  :meth:`bytes.swapcase`                           |
++--------------------------+-------------------+-----------------------+---------------------+-----------------------------+
+| Padding and Stripping    | :meth:`str.ljust` | :meth:`str.rjust`     | :meth:`bytes.ljust` | :meth:`bytes.rjust`         |
+|                          +-------------------+-----------------------+---------------------+-----------------------------+
+|                          |  :meth:`str.center`                       |  :meth:`bytes.center`                             |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.expandtabs`                   |  :meth:`bytes.expandtabs`                         |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.strip`                        |  :meth:`bytes.strip`                              |
+|                          +--------------------+----------------------+----------------------+----------------------------+
+|                          | :meth:`str.lstrip` | :meth:`str.rstrip`   | :meth:`bytes.lstrip` | :meth:`bytes.rstrip`       |
++--------------------------+--------------------+----------------------+----------------------+----------------------------+
+| Translation and Encoding |  :meth:`str.translate`                    |  :meth:`bytes.translate`                          |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.maketrans`                    |  :meth:`bytes.maketrans`                          |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |  :meth:`str.encode`                       |                                                   |
+|                          +-------------------------------------------+---------------------------------------------------+
+|                          |                                           |  :meth:`bytes.decode`                             |
++--------------------------+-------------------------------------------+---------------------------------------------------+
+
 .. _textseq:
 
 Text Sequence Type --- :class:`str`
@@ -1648,7 +1786,7 @@ expression support in the :mod:`re` module).
 
    The casefolding algorithm is
    `described in section 3.13 'Default Case Folding' of the Unicode Standard
-   <https://www.unicode.org/versions/Unicode15.1.0/ch03.pdf>`__.
+   <https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G33992>`__.
 
    .. versionadded:: 3.3
 
@@ -1705,6 +1843,14 @@ expression support in the :mod:`re` module).
    unless an encoding error actually occurs,
    :ref:`devmode` is enabled
    or a :ref:`debug build <debug-build>` is used.
+   For example::
+
+      >>> encoded_str_to_bytes = 'Python'.encode()
+      >>> type(encoded_str_to_bytes)
+      <class 'bytes'>
+      >>> encoded_str_to_bytes
+      b'Python'
+
 
    .. versionchanged:: 3.1
       Added support for keyword arguments.
@@ -1719,7 +1865,19 @@ expression support in the :mod:`re` module).
    Return ``True`` if the string ends with the specified *suffix*, otherwise return
    ``False``.  *suffix* can also be a tuple of suffixes to look for.  With optional
    *start*, test beginning at that position.  With optional *end*, stop comparing
-   at that position.
+   at that position. Using *start* and *end* is equivalent to
+   ``str[start:end].endswith(suffix)``. For example::
+
+      >>> 'Python'.endswith('on')
+      True
+      >>> 'a tuple of suffixes'.endswith(('at', 'in'))
+      False
+      >>> 'a tuple of suffixes'.endswith(('at', 'es'))
+      True
+      >>> 'Python is amazing'.endswith('is', 0, 9)
+      True
+
+   See also :meth:`startswith` and :meth:`removesuffix`.
 
 
 .. method:: str.expandtabs(tabsize=8)
@@ -1735,12 +1893,15 @@ expression support in the :mod:`re` module).
    (``\n``) or return (``\r``), it is copied and the current column is reset to
    zero.  Any other character is copied unchanged and the current column is
    incremented by one regardless of how the character is represented when
-   printed.
+   printed. For example::
 
       >>> '01\t012\t0123\t01234'.expandtabs()
       '01      012     0123    01234'
       >>> '01\t012\t0123\t01234'.expandtabs(4)
       '01  012 0123    01234'
+      >>> print('01\t012\n0123\t01234'.expandtabs(4))
+      01  012
+      0123    01234
 
 
 .. method:: str.find(sub[, start[, end]])
@@ -1828,7 +1989,7 @@ expression support in the :mod:`re` module).
    property being one of "Lm", "Lt", "Lu", "Ll", or "Lo".  Note that this is different
    from the `Alphabetic property defined in the section 4.10 'Letters, Alphabetic, and
    Ideographic' of the Unicode Standard
-   <https://www.unicode.org/versions/Unicode15.1.0/ch04.pdf>`_.
+   <https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-4/#G91002>`_.
 
 
 .. method:: str.isascii()
@@ -1970,7 +2131,7 @@ expression support in the :mod:`re` module).
 
    The lowercasing algorithm used is
    `described in section 3.13 'Default Case Folding' of the Unicode Standard
-   <https://www.unicode.org/versions/Unicode15.1.0/ch03.pdf>`__.
+   <https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G33992>`__.
 
 
 .. method:: str.lstrip([chars])
@@ -2334,7 +2495,7 @@ expression support in the :mod:`re` module).
 
    The uppercasing algorithm used is
    `described in section 3.13 'Default Case Folding' of the Unicode Standard
-   <https://www.unicode.org/versions/Unicode15.1.0/ch03.pdf>`__.
+   <https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G33992>`__.
 
 
 .. method:: str.zfill(width)
@@ -2514,9 +2675,9 @@ For example:
    lead to a number of common errors (such as failing to display tuples and
    dictionaries correctly).  Using the newer :ref:`formatted string literals
    <f-strings>`, the :meth:`str.format` interface, or :ref:`template strings
-   <template-strings>` may help avoid these errors.  Each of these
-   alternatives provides their own trade-offs and benefits of simplicity,
-   flexibility, and/or extensibility.
+   ($-strings) <template-strings-pep292>` may help avoid these errors.
+   Each of these alternatives provides their own trade-offs and benefits of
+   simplicity, flexibility, and/or extensibility.
 
 String objects have one unique built-in operation: the ``%`` operator (modulo).
 This is also known as the string *formatting* or *interpolation* operator.
@@ -2781,6 +2942,10 @@ data and are closely related to string objects in a variety of other ways.
          :meth:`bytes.fromhex` now skips all ASCII whitespace in the string,
          not just spaces.
 
+      .. versionchanged:: 3.14
+         :meth:`bytes.fromhex` now accepts ASCII :class:`bytes` and
+         :term:`bytes-like objects <bytes-like object>` as input.
+
    A reverse conversion function exists to transform a bytes object into its
    hexadecimal representation.
 
@@ -2866,6 +3031,10 @@ objects.
          :meth:`bytearray.fromhex` now skips all ASCII whitespace in the string,
          not just spaces.
 
+      .. versionchanged:: 3.14
+         :meth:`bytearray.fromhex` now accepts ASCII :class:`bytes` and
+         :term:`bytes-like objects <bytes-like object>` as input.
+
    A reverse conversion function exists to transform a bytearray object into its
    hexadecimal representation.
 
@@ -2883,6 +3052,38 @@ objects.
          Similar to :meth:`bytes.hex`, :meth:`bytearray.hex` now supports
          optional *sep* and *bytes_per_sep* parameters to insert separators
          between bytes in the hex output.
+
+   .. method:: resize(size)
+
+      Resize the :class:`bytearray` to contain *size* bytes. *size* must be
+      greater than or equal to 0.
+
+      If the :class:`bytearray` needs to shrink, bytes beyond *size* are truncated.
+
+      If the :class:`bytearray` needs to grow, all new bytes, those beyond *size*,
+      will be set to null bytes.
+
+
+      This is equivalent to:
+
+      >>> def resize(ba, size):
+      ...     if len(ba) > size:
+      ...         del ba[size:]
+      ...     else:
+      ...         ba += b'\0' * (size - len(ba))
+
+      Examples:
+
+      >>> shrink = bytearray(b'abc')
+      >>> shrink.resize(1)
+      >>> (shrink, len(shrink))
+      (bytearray(b'a'), 1)
+      >>> grow = bytearray(b'abc')
+      >>> grow.resize(5)
+      >>> (grow, len(grow))
+      (bytearray(b'abc\x00\x00'), 5)
+
+      .. versionadded:: 3.14
 
 Since bytearray objects are sequences of integers (akin to a list), for a
 bytearray object *b*, ``b[0]`` will be an integer, while ``b[0:1]`` will be
@@ -4032,6 +4233,9 @@ copying.
    .. versionchanged:: 3.5
       memoryviews can now be indexed with tuple of integers.
 
+   .. versionchanged:: 3.14
+      memoryview is now a :term:`generic type`.
+
    :class:`memoryview` has several methods:
 
    .. method:: __eq__(exporter)
@@ -4282,6 +4486,21 @@ copying.
 
       .. versionchanged:: 3.5
          The source format is no longer restricted when casting to a byte view.
+
+   .. method:: count(value, /)
+
+      Count the number of occurrences of *value*.
+
+      .. versionadded:: 3.14
+
+  .. method:: index(value, start=0, stop=sys.maxsize, /)
+
+      Return the index of the first occurrence of *value* (at or after
+      index *start* and before index *stop*).
+
+      Raises a :exc:`ValueError` if *value* cannot be found.
+
+      .. versionadded:: 3.14
 
    There are also several readonly attributes available:
 
@@ -5249,7 +5468,6 @@ list is non-exhaustive.
 * :class:`collections.abc.MutableMapping`
 * :class:`collections.abc.Sequence`
 * :class:`collections.abc.MutableSequence`
-* :class:`collections.abc.ByteString`
 * :class:`collections.abc.MappingView`
 * :class:`collections.abc.KeysView`
 * :class:`collections.abc.ItemsView`
@@ -5355,7 +5573,7 @@ Union Type
 A union object holds the value of the ``|`` (bitwise or) operation on
 multiple :ref:`type objects <bltin-type-objects>`.  These types are intended
 primarily for :term:`type annotations <annotation>`. The union type expression
-enables cleaner type hinting syntax compared to :data:`typing.Union`.
+enables cleaner type hinting syntax compared to subscripting :class:`typing.Union`.
 
 .. describe:: X | Y | ...
 
@@ -5391,9 +5609,10 @@ enables cleaner type hinting syntax compared to :data:`typing.Union`.
 
       int | str == str | int
 
-   * It is compatible with :data:`typing.Union`::
+   * It creates instances of :class:`typing.Union`::
 
       int | str == typing.Union[int, str]
+      type(int | str) is typing.Union
 
    * Optional types can be spelled as a union with ``None``::
 
@@ -5419,16 +5638,15 @@ enables cleaner type hinting syntax compared to :data:`typing.Union`.
       TypeError: isinstance() argument 2 cannot be a parameterized generic
 
 The user-exposed type for the union object can be accessed from
-:data:`types.UnionType` and used for :func:`isinstance` checks.  An object cannot be
-instantiated from the type::
+:class:`typing.Union` and used for :func:`isinstance` checks::
 
-   >>> import types
-   >>> isinstance(int | str, types.UnionType)
+   >>> import typing
+   >>> isinstance(int | str, typing.Union)
    True
-   >>> types.UnionType()
+   >>> typing.Union()
    Traceback (most recent call last):
      File "<stdin>", line 1, in <module>
-   TypeError: cannot create 'types.UnionType' instances
+   TypeError: cannot create 'typing.Union' instances
 
 .. note::
    The :meth:`!__or__` method for type objects was added to support the syntax
@@ -5454,6 +5672,11 @@ instantiated from the type::
    :pep:`604` -- PEP proposing the ``X | Y`` syntax and the Union type.
 
 .. versionadded:: 3.10
+
+.. versionchanged:: 3.14
+
+   Union objects are now instances of :class:`typing.Union`. Previously, they were instances
+   of :class:`types.UnionType`, which remains an alias for :class:`typing.Union`.
 
 
 .. _typesother:

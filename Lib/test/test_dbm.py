@@ -66,7 +66,7 @@ class AnyDBMTestCase:
         return keys
 
     def test_error(self):
-        self.assertTrue(issubclass(self.module.error, OSError))
+        self.assertIsSubclass(self.module.error, OSError)
 
     def test_anydbm_not_existing(self):
         self.assertRaises(dbm.error, dbm.open, _fname)
@@ -213,7 +213,8 @@ class WhichDBTestCase(unittest.TestCase):
     @unittest.skipUnless(ndbm, reason='Test requires ndbm')
     def test_whichdb_ndbm(self):
         # Issue 17198: check that ndbm which is referenced in whichdb is defined
-        with open(_fname + '.db', 'wb'): pass
+        with open(_fname + '.db', 'wb') as f:
+            f.write(b'spam')
         _bytes_fname = os.fsencode(_fname)
         fnames = [_fname, os_helper.FakePath(_fname),
                   _bytes_fname, os_helper.FakePath(_bytes_fname)]

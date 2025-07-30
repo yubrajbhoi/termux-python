@@ -905,7 +905,7 @@ object::
   call is an awaitable.
 
     >>> mock = AsyncMock()
-    >>> asyncio.iscoroutinefunction(mock)
+    >>> inspect.iscoroutinefunction(mock)
     True
     >>> inspect.isawaitable(mock())  # doctest: +SKIP
     True
@@ -1661,7 +1661,8 @@ patch.dict
 .. function:: patch.dict(in_dict, values=(), clear=False, **kwargs)
 
     Patch a dictionary, or dictionary like object, and restore the dictionary
-    to its original state after the test.
+    to its original state after the test, where the restored dictionary is a
+    copy of the dictionary as it was before the test.
 
     *in_dict* can be a dictionary or a mapping like container. If it is a
     mapping then it must at least support getting, setting and deleting items

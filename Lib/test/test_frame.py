@@ -1,11 +1,9 @@
 import copy
-import gc
 import operator
 import re
 import sys
 import textwrap
 import threading
-import types
 import unittest
 import weakref
 try:
@@ -15,7 +13,7 @@ except ImportError:
 
 from collections.abc import Mapping
 from test import support
-from test.support import import_helper, threading_helper, Py_GIL_DISABLED
+from test.support import import_helper, threading_helper
 from test.support.script_helper import assert_python_ok
 from test import mapping_tests
 
@@ -223,6 +221,56 @@ class FrameAttrsTest(unittest.TestCase):
         f, _, _ = self.make_frames()
         with self.assertRaises(AttributeError):
             del f.f_lineno
+
+    def test_f_generator(self):
+        # Test f_generator in different contexts.
+
+        def t0():
+            def nested():
+                frame = sys._getframe()
+                return frame.f_generator
+
+            def gen():
+                yield nested()
+
+            g = gen()
+            try:
+                return next(g)
+            finally:
+                g.close()
+
+        def t1():
+            frame = sys._getframe()
+            return frame.f_generator
+
+        def t2():
+            frame = sys._getframe()
+            yield frame.f_generator
+
+        async def t3():
+            frame = sys._getframe()
+            return frame.f_generator
+
+        # For regular functions f_generator is None
+        self.assertIsNone(t0())
+        self.assertIsNone(t1())
+
+        # For generators f_generator is equal to self
+        g = t2()
+        try:
+            frame_g = next(g)
+            self.assertIs(g, frame_g)
+        finally:
+            g.close()
+
+        # Ditto for coroutines
+        c = t3()
+        try:
+            c.send(None)
+        except StopIteration as ex:
+            self.assertIs(ex.value, c)
+        else:
+            raise AssertionError('coroutine did not exit')
 
 
 class ReprTest(unittest.TestCase):
@@ -549,6 +597,22 @@ class TestFrameLocals(unittest.TestCase):
         with self.assertRaises(TypeError):
             FrameLocalsProxy(frame=sys._getframe())  # no keyword arguments
 
+    def test_overwrite_locals(self):
+        # Verify we do not crash if we overwrite a local passed as an argument
+        # from an ancestor in the call stack.
+        def f():
+            xs = [1, 2, 3]
+            ys = [4, 5, 6]
+            return g(xs)
+
+        def g(xs):
+            f = sys._getframe()
+            f.f_back.f_locals["xs"] = None
+            f.f_back.f_locals["ys"] = None
+            return xs[1]
+
+        self.assertEqual(f(), 2)
+
 
 class FrameLocalsProxyMappingTests(mapping_tests.TestHashMappingProtocol):
     """Test that FrameLocalsProxy behaves like a Mapping (with exceptions)"""
@@ -731,51 +795,6 @@ class TestIncompleteFrameAreInvisible(unittest.TestCase):
             self.assertIs(catcher.unraisable.exc_type, TypeError)
         self.assertIsNone(weak())
 
-@unittest.skipIf(_testcapi is None, 'need _testcapi')
-class TestCAPI(unittest.TestCase):
-    def getframe(self):
-        return sys._getframe()
-
-    def test_frame_getters(self):
-        frame = self.getframe()
-        self.assertEqual(frame.f_locals, _testcapi.frame_getlocals(frame))
-        self.assertIs(frame.f_globals, _testcapi.frame_getglobals(frame))
-        self.assertIs(frame.f_builtins, _testcapi.frame_getbuiltins(frame))
-        self.assertEqual(frame.f_lasti, _testcapi.frame_getlasti(frame))
-
-    def test_getvar(self):
-        current_frame = sys._getframe()
-        x = 1
-        self.assertEqual(_testcapi.frame_getvar(current_frame, "x"), 1)
-        self.assertEqual(_testcapi.frame_getvarstring(current_frame, b"x"), 1)
-        with self.assertRaises(NameError):
-            _testcapi.frame_getvar(current_frame, "y")
-        with self.assertRaises(NameError):
-            _testcapi.frame_getvarstring(current_frame, b"y")
-
-        # wrong name type
-        with self.assertRaises(TypeError):
-            _testcapi.frame_getvar(current_frame, b'x')
-        with self.assertRaises(TypeError):
-            _testcapi.frame_getvar(current_frame, 123)
-
-    def getgenframe(self):
-        yield sys._getframe()
-
-    def test_frame_get_generator(self):
-        gen = self.getgenframe()
-        frame = next(gen)
-        self.assertIs(gen, _testcapi.frame_getgenerator(frame))
-
-    def test_frame_fback_api(self):
-        """Test that accessing `f_back` does not cause a segmentation fault on
-        a frame created with `PyFrame_New` (GH-99110)."""
-        def dummy():
-            pass
-
-        frame = _testcapi.frame_new(dummy.__code__, globals(), locals())
-        # The following line should not cause a segmentation fault.
-        self.assertIsNone(frame.f_back)
 
 if __name__ == "__main__":
     unittest.main()

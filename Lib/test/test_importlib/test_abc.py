@@ -224,7 +224,15 @@ class ResourceLoaderDefaultsTests(ABCTestHarness):
     SPLIT = make_abc_subclasses(ResourceLoader)
 
     def test_get_data(self):
-        with self.assertRaises(IOError):
+        with (
+            self.assertRaises(IOError),
+            self.assertWarnsRegex(
+                DeprecationWarning,
+                r"importlib\.abc\.ResourceLoader is deprecated in favour of "
+                r"supporting resource loading through importlib\.resources"
+                r"\.abc\.TraversableResources.",
+            ),
+        ):
             self.ins.get_data('/some/path')
 
 
@@ -793,6 +801,9 @@ class SourceLoaderBytecodeTests(SourceLoaderTestHarness):
             data.extend(self.init._pack_uint32(0))
             data.extend(self.init._pack_uint32(self.loader.source_mtime))
             data.extend(self.init._pack_uint32(self.loader.source_size))
+            # Make sure there's > 1 reference to code_object so that the
+            # marshaled representation below matches the cached representation
+            l = [code_object]
             data.extend(marshal.dumps(code_object))
             self.assertEqual(self.loader.written[self.cached], bytes(data))
 
@@ -911,30 +922,47 @@ class SourceLoaderGetSourceTests:
                          SourceOnlyLoaderMock=SPLIT_SOL)
 
 
-class DeprecatedAttrsTests:
+class SourceLoaderDeprecationWarningsTests(unittest.TestCase):
+    """Tests SourceLoader deprecation warnings."""
 
-    """Test the deprecated attributes can be accessed."""
+    def test_deprecated_path_mtime(self):
+        from importlib.abc import SourceLoader
+        class DummySourceLoader(SourceLoader):
+            def get_data(self, path):
+                return b''
 
-    def test_deprecated_attr_ResourceReader(self):
+            def get_filename(self, fullname):
+                return 'foo.py'
+
+            def path_stats(self, path):
+                return {'mtime': 1}
+        with self.assertWarnsRegex(
+            DeprecationWarning,
+            r"importlib\.abc\.ResourceLoader is deprecated in favour of "
+            r"supporting resource loading through importlib\.resources"
+            r"\.abc\.TraversableResources.",
+        ):
+            loader = DummySourceLoader()
+
+        with self.assertWarnsRegex(
+            DeprecationWarning,
+            r"SourceLoader\.path_mtime is deprecated in favour of "
+            r"SourceLoader\.path_stats\(\)\."
+        ):
+            loader.path_mtime('foo.py')
+
+
+class ResourceLoaderDeprecationWarningsTests(unittest.TestCase):
+    """Tests ResourceLoader deprecation warnings."""
+
+    def test_deprecated_resource_loader(self):
+        from importlib.abc import ResourceLoader
+        class DummyLoader(ResourceLoader):
+            def get_data(self, path):
+                return b''
+
         with self.assertWarns(DeprecationWarning):
-            self.abc.ResourceReader
-        del self.abc.ResourceReader
-
-    def test_deprecated_attr_Traversable(self):
-        with self.assertWarns(DeprecationWarning):
-            self.abc.Traversable
-        del self.abc.Traversable
-
-    def test_deprecated_attr_TraversableResources(self):
-        with self.assertWarns(DeprecationWarning):
-            self.abc.TraversableResources
-        del self.abc.TraversableResources
-
-
-(Frozen_DeprecatedAttrsTests,
- Source_DeprecatedAttrsTests
- ) = test_util.test_both(DeprecatedAttrsTests, abc=abc)
-
+            DummyLoader()
 
 if __name__ == '__main__':
     unittest.main()

@@ -17,7 +17,6 @@ from test.support import socket_helper
 from test.support import threading_helper
 from test.support import asynchat
 from test.support import asyncore
-from test.support.testcase import ExtraAssertions
 
 
 test_support.requires_working_socket(module=True)
@@ -256,7 +255,7 @@ class DummyPOP3Server(asyncore.dispatcher, threading.Thread):
         raise
 
 
-class TestPOP3Class(TestCase, ExtraAssertions):
+class TestPOP3Class(TestCase):
     def assertOK(self, resp):
         self.assertStartsWith(resp, b"+OK")
 

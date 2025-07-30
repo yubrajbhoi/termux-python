@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """Generate Python documentation in HTML or text for interactive use.
 
 At the Python interactive prompt, calling help(thing) on a Python object
@@ -69,16 +68,21 @@ import platform
 import re
 import sys
 import sysconfig
+import textwrap
 import time
 import tokenize
 import urllib.parse
 import warnings
+from annotationlib import Format
 from collections import deque
 from reprlib import Repr
 from traceback import format_exception_only
 
-from _pyrepl.pager import (get_pager, plain, pipe_pager,
+from _pyrepl.pager import (get_pager, pipe_pager,
                            plain_pager, tempfile_pager, tty_pager)
+
+# Expose plain() as pydoc.plain()
+from _pyrepl.pager import plain  # noqa: F401
 
 
 # --------------------------------------------------------- old names
@@ -211,12 +215,12 @@ def splitdoc(doc):
 
 def _getargspec(object):
     try:
-        signature = inspect.signature(object)
+        signature = inspect.signature(object, annotation_format=Format.STRING)
         if signature:
             name = getattr(object, '__name__', '')
             # <lambda> function are always single-line and should not be formatted
             max_width = (80 - len(name)) if name != '<lambda>' else None
-            return signature.format(max_width=max_width)
+            return signature.format(max_width=max_width, quote_annotation_strings=False)
     except (ValueError, TypeError):
         argspec = getattr(object, '__text_signature__', None)
         if argspec:
@@ -327,7 +331,8 @@ def visiblename(name, all=None, obj=None):
                 '__date__', '__doc__', '__file__', '__spec__',
                 '__loader__', '__module__', '__name__', '__package__',
                 '__path__', '__qualname__', '__slots__', '__version__',
-                '__static_attributes__', '__firstlineno__'}:
+                '__static_attributes__', '__firstlineno__',
+                '__annotate_func__', '__annotations_cache__'}:
         return 0
     # Private names are hidden, but special names are displayed.
     if name.startswith('__') and name.endswith('__'): return 1
@@ -1432,7 +1437,8 @@ location listed above.
         # List the built-in subclasses, if any:
         subclasses = sorted(
             (str(cls.__name__) for cls in type.__subclasses__(object)
-             if not cls.__name__.startswith("_") and cls.__module__ == "builtins"),
+             if (not cls.__name__.startswith("_") and
+                 getattr(cls, '__module__', '') == "builtins")),
             key=str.lower
         )
         no_of_subclasses = len(subclasses)
@@ -1689,6 +1695,13 @@ def describe(thing):
         return 'function ' + thing.__name__
     if inspect.ismethod(thing):
         return 'method ' + thing.__name__
+    if inspect.ismethodwrapper(thing):
+        return 'method wrapper ' + thing.__name__
+    if inspect.ismethoddescriptor(thing):
+        try:
+            return 'method descriptor ' + thing.__name__
+        except AttributeError:
+            pass
     return type(thing).__name__
 
 def locate(path, forceload=0):
@@ -1796,6 +1809,37 @@ def writedocs(dir, pkgpath='', done=None):
     for importer, modname, ispkg in pkgutil.walk_packages([dir], pkgpath):
         writedoc(modname)
     return
+
+
+def _introdoc():
+    import textwrap
+    ver = '%d.%d' % sys.version_info[:2]
+    if os.environ.get('PYTHON_BASIC_REPL'):
+        pyrepl_keys = ''
+    else:
+        # Additional help for keyboard shortcuts if enhanced REPL is used.
+        pyrepl_keys = '''
+        You can use the following keyboard shortcuts at the main interpreter prompt.
+        F1: enter interactive help, F2: enter history browsing mode, F3: enter paste
+        mode (press again to exit).
+        '''
+    return textwrap.dedent(f'''\
+        Welcome to Python {ver}'s help utility! If this is your first time using
+        Python, you should definitely check out the tutorial at
+        https://docs.python.org/{ver}/tutorial/.
+
+        Enter the name of any module, keyword, or topic to get help on writing
+        Python programs and using Python modules.  To get a list of available
+        modules, keywords, symbols, or topics, enter "modules", "keywords",
+        "symbols", or "topics".
+        {pyrepl_keys}
+        Each module also comes with a one-line summary of what it does; to list
+        the modules whose name or summary contain a given string such as "spam",
+        enter "modules spam".
+
+        To quit this help utility and return to the interpreter,
+        enter "q", "quit" or "exit".
+    ''')
 
 class Helper:
 
@@ -2063,23 +2107,7 @@ has the same effect as typing a particular string at the help> prompt.
         self.output.write('\n')
 
     def intro(self):
-        self.output.write('''\
-Welcome to Python {0}'s help utility! If this is your first time using
-Python, you should definitely check out the tutorial at
-https://docs.python.org/{0}/tutorial/.
-
-Enter the name of any module, keyword, or topic to get help on writing
-Python programs and using Python modules.  To get a list of available
-modules, keywords, symbols, or topics, enter "modules", "keywords",
-"symbols", or "topics".
-
-Each module also comes with a one-line summary of what it does; to list
-the modules whose name or summary contain a given string such as "spam",
-enter "modules spam".
-
-To quit this help utility and return to the interpreter,
-enter "q", "quit" or "exit".
-'''.format('%d.%d' % sys.version_info[:2]))
+        self.output.write(_introdoc())
 
     def list(self, items, columns=4, width=80):
         items = sorted(items)

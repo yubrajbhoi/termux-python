@@ -8,9 +8,8 @@ import unittest
 
 from importlib.util import cache_from_source
 from test.support.os_helper import create_empty_file
-from test.support.testcase import ExtraAssertions
 
-class TestImport(unittest.TestCase, ExtraAssertions):
+class TestImport(unittest.TestCase):
 
     def __init__(self, *args, **kw):
         self.package_name = 'PACKAGE_'

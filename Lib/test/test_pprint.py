@@ -8,9 +8,11 @@ import itertools
 import pprint
 import random
 import re
-import test.support
 import types
 import unittest
+
+from test.support import cpython_only
+from test.support.import_helper import ensure_lazy_imports
 
 # list, tuple and dict subclasses that do or don't overwrite __repr__
 class list2(list):
@@ -129,6 +131,10 @@ class QueryTestCase(unittest.TestCase):
         self.a = list(range(100))
         self.b = list(range(200))
         self.a[-12] = self.b
+
+    @cpython_only
+    def test_lazy_import(self):
+        ensure_lazy_imports("pprint", {"dataclasses", "re"})
 
     def test_init(self):
         pp = pprint.PrettyPrinter()
@@ -374,7 +380,7 @@ class QueryTestCase(unittest.TestCase):
                 return super().__new__(Temperature, celsius_degrees)
             def __repr__(self):
                 kelvin_degrees = self + 273.15
-                return f"{kelvin_degrees}°K"
+                return f"{kelvin_degrees:.2f}°K"
         self.assertEqual(pprint.pformat(Temperature(1000)), '1273.15°K')
 
     def test_sorted_dict(self):

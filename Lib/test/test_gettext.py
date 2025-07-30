@@ -6,13 +6,12 @@ import unittest.mock
 from functools import partial
 
 from test import support
-from test.support import os_helper
+from test.support import cpython_only, os_helper
+from test.support.import_helper import ensure_lazy_imports
 
 
 # TODO:
 #  - Add new tests, for example for "dgettext"
-#  - Remove dummy tests, for example testing for single and double quotes
-#    has no sense, it would have if we were testing a parser (i.e. pygettext)
 #  - Tests should have only one assert.
 
 GNU_MO_DATA = b'''\
@@ -231,30 +230,6 @@ class GettextTestCase1(GettextBaseTest):
         eq(pgettext('my other context', 'nudge nudge'),
            'wink wink (in "my other context")')
 
-    def test_double_quotes(self):
-        eq = self.assertEqual
-        # double quotes
-        eq(_("albatross"), 'albatross')
-        eq(_("mullusk"), 'bacon')
-        eq(_(r"Raymond Luxury Yach-t"), 'Throatwobbler Mangrove')
-        eq(_(r"nudge nudge"), 'wink wink')
-
-    def test_triple_single_quotes(self):
-        eq = self.assertEqual
-        # triple single quotes
-        eq(_('''albatross'''), 'albatross')
-        eq(_('''mullusk'''), 'bacon')
-        eq(_(r'''Raymond Luxury Yach-t'''), 'Throatwobbler Mangrove')
-        eq(_(r'''nudge nudge'''), 'wink wink')
-
-    def test_triple_double_quotes(self):
-        eq = self.assertEqual
-        # triple double quotes
-        eq(_("""albatross"""), 'albatross')
-        eq(_("""mullusk"""), 'bacon')
-        eq(_(r"""Raymond Luxury Yach-t"""), 'Throatwobbler Mangrove')
-        eq(_(r"""nudge nudge"""), 'wink wink')
-
     def test_multiline_strings(self):
         eq = self.assertEqual
         # multiline strings
@@ -366,30 +341,6 @@ class GettextTestCase2(GettextBaseTest):
            'wink wink (in "my context")')
         eq(gettext.dpgettext('gettext', 'my other context', 'nudge nudge'),
            'wink wink (in "my other context")')
-
-    def test_double_quotes(self):
-        eq = self.assertEqual
-        # double quotes
-        eq(self._("albatross"), 'albatross')
-        eq(self._("mullusk"), 'bacon')
-        eq(self._(r"Raymond Luxury Yach-t"), 'Throatwobbler Mangrove')
-        eq(self._(r"nudge nudge"), 'wink wink')
-
-    def test_triple_single_quotes(self):
-        eq = self.assertEqual
-        # triple single quotes
-        eq(self._('''albatross'''), 'albatross')
-        eq(self._('''mullusk'''), 'bacon')
-        eq(self._(r'''Raymond Luxury Yach-t'''), 'Throatwobbler Mangrove')
-        eq(self._(r'''nudge nudge'''), 'wink wink')
-
-    def test_triple_double_quotes(self):
-        eq = self.assertEqual
-        # triple double quotes
-        eq(self._("""albatross"""), 'albatross')
-        eq(self._("""mullusk"""), 'bacon')
-        eq(self._(r"""Raymond Luxury Yach-t"""), 'Throatwobbler Mangrove')
-        eq(self._(r"""nudge nudge"""), 'wink wink')
 
     def test_multiline_strings(self):
         eq = self.assertEqual
@@ -616,6 +567,7 @@ class PluralFormsInternalTestCase(unittest.TestCase):
         s = ''.join([ str(f(x)) for x in range(200) ])
         eq(s, "01233333333444444444444444444444444444444444444444444444444444444444444444444444444444444444444444445553333333344444444444444444444444444444444444444444444444444444444444444444444444444444444444444444")
 
+    @support.skip_wasi_stack_overflow()
     def test_security(self):
         raises = self.assertRaises
         # Test for a dangerous expression
@@ -979,6 +931,17 @@ class MiscTestCase(unittest.TestCase):
     def test__all__(self):
         support.check__all__(self, gettext,
                              not_exported={'c2py', 'ENOENT'})
+
+    @cpython_only
+    def test_lazy_import(self):
+        ensure_lazy_imports("gettext", {"re", "warnings", "locale"})
+
+
+class TranslationFallbackTestCase(unittest.TestCase):
+    def test_translation_fallback(self):
+        with os_helper.temp_cwd() as tempdir:
+            t = gettext.translation('gettext', localedir=tempdir, fallback=True)
+            self.assertIsInstance(t, gettext.NullTranslations)
 
 
 if __name__ == '__main__':

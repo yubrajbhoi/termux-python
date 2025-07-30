@@ -3,7 +3,6 @@ import os
 import importlib
 
 from test.support import warnings_helper
-from test.support.testcase import ExtraAssertions
 
 from importlib import resources
 
@@ -29,7 +28,7 @@ class ModuleAnchorMixin:
         return importlib.import_module('data02')
 
 
-class FunctionalAPIBase(util.DiskSetup, ExtraAssertions):
+class FunctionalAPIBase(util.DiskSetup):
     def setUp(self):
         super().setUp()
         self.load_fixture('data02')

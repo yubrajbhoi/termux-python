@@ -440,6 +440,8 @@ are always available.  They are listed here in alphabetical order.
    If one of arguments is a real number, only its real component is used in
    the above expressions.
 
+   See also :meth:`complex.from_number` which only accepts a single numeric argument.
+
    If all arguments are omitted, returns ``0j``.
 
    The complex type is described in :ref:`typesnumeric`.
@@ -450,6 +452,10 @@ are always available.  They are listed here in alphabetical order.
    .. versionchanged:: 3.8
       Falls back to :meth:`~object.__index__` if :meth:`~object.__complex__` and
       :meth:`~object.__float__` are not defined.
+
+   .. deprecated:: 3.14
+      Passing a complex number as the *real* or *imag* argument is now
+      deprecated; it should only be passed as a single positional argument.
 
 
 .. function:: delattr(object, name)
@@ -797,6 +803,8 @@ are always available.  They are listed here in alphabetical order.
    ``x.__float__()``.  If :meth:`~object.__float__` is not defined then it falls back
    to :meth:`~object.__index__`.
 
+   See also :meth:`float.from_number` which only accepts a numeric argument.
+
    If no argument is given, ``0.0`` is returned.
 
    The float type is described in :ref:`typesnumeric`.
@@ -1013,9 +1021,8 @@ are always available.  They are listed here in alphabetical order.
       115
 
    If the argument defines :meth:`~object.__int__`,
-   ``int(x)`` returns ``x.__int__()``.  If the argument defines :meth:`~object.__index__`,
-   it returns ``x.__index__()``.  If the argument defines :meth:`~object.__trunc__`,
-   it returns ``x.__trunc__()``.
+   ``int(x)`` returns ``x.__int__()``.  If the argument defines
+   :meth:`~object.__index__`, it returns ``x.__index__()``.
    For floating-point numbers, this truncates towards zero.
 
    If the argument is not a number or if *base* is given, then it must be a string,
@@ -1054,15 +1061,15 @@ are always available.  They are listed here in alphabetical order.
       Falls back to :meth:`~object.__index__` if :meth:`~object.__int__` is not defined.
 
    .. versionchanged:: 3.11
-      The delegation to :meth:`~object.__trunc__` is deprecated.
-
-   .. versionchanged:: 3.11
       :class:`int` string inputs and string representations can be limited to
       help avoid denial of service attacks. A :exc:`ValueError` is raised when
       the limit is exceeded while converting a string to an :class:`int` or
       when converting an :class:`int` into a string would exceed the limit.
       See the :ref:`integer string conversion length limitation
       <int_max_str_digits>` documentation.
+
+   .. versionchanged:: 3.14
+      :func:`int` no longer delegates to the :meth:`~object.__trunc__` method.
 
 .. function:: isinstance(object, classinfo)
 
@@ -1198,14 +1205,19 @@ are always available.  They are listed here in alphabetical order.
       unchanged from previous versions.
 
 
-.. function:: map(function, iterable, *iterables)
+.. function:: map(function, iterable, /, *iterables, strict=False)
 
    Return an iterator that applies *function* to every item of *iterable*,
    yielding the results.  If additional *iterables* arguments are passed,
    *function* must take that many arguments and is applied to the items from all
    iterables in parallel.  With multiple iterables, the iterator stops when the
-   shortest iterable is exhausted.  For cases where the function inputs are
-   already arranged into argument tuples, see :func:`itertools.starmap`\.
+   shortest iterable is exhausted.  If *strict* is ``True`` and one of the
+   iterables is exhausted before the others, a :exc:`ValueError` is raised. For
+   cases where the function inputs are already arranged into argument tuples,
+   see :func:`itertools.starmap`.
+
+   .. versionchanged:: 3.14
+      Added the *strict* parameter.
 
 
 .. function:: max(iterable, *, key=None)
@@ -1393,10 +1405,10 @@ are always available.  They are listed here in alphabetical order.
    :func:`io.TextIOWrapper.reconfigure`. When no *buffering* argument is
    given, the default buffering policy works as follows:
 
-   * Binary files are buffered in fixed-size chunks; the size of the buffer is
-     chosen using a heuristic trying to determine the underlying device's "block
-     size" and falling back on :const:`io.DEFAULT_BUFFER_SIZE`.  On many systems,
-     the buffer will typically be 4096 or 8192 bytes long.
+   * Binary files are buffered in fixed-size chunks; the size of the buffer
+     is ``max(min(blocksize, 8 MiB), DEFAULT_BUFFER_SIZE)``
+     when the device block size is available.
+     On most systems, the buffer will typically be 128 kilobytes long.
 
    * "Interactive" text files (files for which :meth:`~io.IOBase.isatty`
      returns ``True``) use line buffering.  Other text files use the policy
@@ -1827,14 +1839,14 @@ are always available.  They are listed here in alphabetical order.
    ``range(start, stop, step)``.  The *start* and *step* arguments default to
    ``None``.
 
+   Slice objects have read-only data attributes :attr:`!start`,
+   :attr:`!stop`, and :attr:`!step` which merely return the argument
+   values (or their default).  They have no other explicit functionality;
+   however, they are used by NumPy and other third-party packages.
+
    .. attribute:: slice.start
    .. attribute:: slice.stop
    .. attribute:: slice.step
-
-      Slice objects have read-only data attributes :attr:`!start`,
-      :attr:`!stop`, and :attr:`!step` which merely return the argument
-      values (or their default).  They have no other explicit functionality;
-      however, they are used by NumPy and other third-party packages.
 
    Slice objects are also generated when extended indexing syntax is used.  For
    example: ``a[start:stop:step]`` or ``a[start:stop, i]``.  See
@@ -1954,6 +1966,10 @@ are always available.  They are listed here in alphabetical order.
    .. versionchanged:: 3.12 Summation of floats switched to an algorithm
       that gives higher accuracy and better commutativity on most builds.
 
+   .. versionchanged:: 3.14
+      Added specialization for summation of complexes,
+      using same algorithm as for summation of floats.
+
 
 .. class:: super()
            super(type, object_or_type=None)
@@ -2031,6 +2047,10 @@ are always available.  They are listed here in alphabetical order.
    For practical suggestions on how to design cooperative classes using
    :func:`super`, see `guide to using super()
    <https://rhettinger.wordpress.com/2011/05/26/super-considered-super/>`_.
+
+   .. versionchanged:: 3.14
+     :class:`super` objects are now :mod:`pickleable <pickle>` and
+      :mod:`copyable <copy>`.
 
 
 .. _func-tuple:

@@ -1,4 +1,3 @@
-import os
 from code import InteractiveConsole
 from functools import partial
 from typing import Iterable
@@ -113,9 +112,6 @@ handle_events_narrow_console = partial(
     handle_all_events,
     prepare_console=partial(prepare_console, width=10),
 )
-
-reader_no_colors = partial(prepare_reader, can_colorize=False)
-reader_force_colors = partial(prepare_reader, can_colorize=True)
 
 
 class FakeConsole(Console):

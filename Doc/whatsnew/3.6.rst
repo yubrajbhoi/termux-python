@@ -45,7 +45,7 @@
    when researching a change.
 
 This article explains the new features in Python 3.6, compared to 3.5.
-Python 3.6 was released on December 23, 2016.  See the
+Python 3.6 was released on December 23, 2016.  See the
 `changelog <https://docs.python.org/3.6/whatsnew/changelog.html>`_ for a full
 list of changes.
 
@@ -2371,7 +2371,7 @@ There have been several major changes to the :term:`bytecode` in Python 3.6.
   (Contributed by Eric Smith in :issue:`25483` and
   Serhiy Storchaka in :issue:`27078`.)
 
-* The new :opcode:`BUILD_CONST_KEY_MAP` opcode to optimize the creation
+* The new :opcode:`!BUILD_CONST_KEY_MAP` opcode to optimize the creation
   of dictionaries with constant keys.
   (Contributed by Serhiy Storchaka in :issue:`27140`.)
 

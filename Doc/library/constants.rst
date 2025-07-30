@@ -54,9 +54,12 @@ A small number of constants live in the built-in namespace.  They are:
       of the exception.
 
    .. versionchanged:: 3.9
-      Evaluating :data:`!NotImplemented` in a boolean context is deprecated. While
-      it currently evaluates as true, it will emit a :exc:`DeprecationWarning`.
-      It will raise a :exc:`TypeError` in a future version of Python.
+      Evaluating :data:`!NotImplemented` in a boolean context was deprecated.
+
+   .. versionchanged:: 3.14
+      Evaluating :data:`!NotImplemented` in a boolean context now raises a :exc:`TypeError`.
+      It previously evaluated to :const:`True` and emitted a :exc:`DeprecationWarning`
+      since Python 3.9.
 
 
 .. index:: single: ...; ellipsis literal

@@ -136,6 +136,10 @@ examples of doctests in the standard Python test suite and libraries.
 Especially useful examples can be found in the standard test file
 :file:`Lib/test/test_doctest/test_doctest.py`.
 
+.. versionadded:: 3.13
+   Output is colorized by default and can be
+   :ref:`controlled using environment variables <using-on-controlling-color>`.
+
 
 .. _doctest-simple-testmod:
 
@@ -307,8 +311,12 @@ Which Docstrings Are Examined?
 The module docstring, and all function, class and method docstrings are
 searched.  Objects imported into the module are not searched.
 
+.. currentmodule:: None
+
 .. attribute:: module.__test__
    :no-typesetting:
+
+.. currentmodule:: doctest
 
 In addition, there are cases when you want tests to be part of a module but not part
 of the help text, which requires that the tests not be included in the docstring.

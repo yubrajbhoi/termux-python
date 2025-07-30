@@ -31,8 +31,7 @@ import urllib.parse
 import warnings
 
 from test.support import (
-    SHORT_TIMEOUT, check_disallow_instantiation, requires_subprocess,
-    is_apple, is_emscripten, is_wasi
+    SHORT_TIMEOUT, check_disallow_instantiation, requires_subprocess
 )
 from test.support import gc_collect
 from test.support import threading_helper, import_helper
@@ -48,17 +47,6 @@ class ModuleTests(unittest.TestCase):
         self.assertEqual(sqlite.apilevel, "2.0",
                          "apilevel is %s, should be 2.0" % sqlite.apilevel)
 
-    def test_deprecated_version(self):
-        msg = "deprecated and will be removed in Python 3.14"
-        for attr in "version", "version_info":
-            with self.subTest(attr=attr):
-                with self.assertWarnsRegex(DeprecationWarning, msg) as cm:
-                    getattr(sqlite, attr)
-                self.assertEqual(cm.filename,  __file__)
-                with self.assertWarnsRegex(DeprecationWarning, msg) as cm:
-                    getattr(sqlite.dbapi2, attr)
-                self.assertEqual(cm.filename,  __file__)
-
     def test_thread_safety(self):
         self.assertIn(sqlite.threadsafety, {0, 1, 3},
                       "threadsafety is %d, should be 0, 1 or 3" %
@@ -70,45 +58,34 @@ class ModuleTests(unittest.TestCase):
                          sqlite.paramstyle)
 
     def test_warning(self):
-        self.assertTrue(issubclass(sqlite.Warning, Exception),
-                     "Warning is not a subclass of Exception")
+        self.assertIsSubclass(sqlite.Warning, Exception)
 
     def test_error(self):
-        self.assertTrue(issubclass(sqlite.Error, Exception),
-                        "Error is not a subclass of Exception")
+        self.assertIsSubclass(sqlite.Error, Exception)
 
     def test_interface_error(self):
-        self.assertTrue(issubclass(sqlite.InterfaceError, sqlite.Error),
-                        "InterfaceError is not a subclass of Error")
+        self.assertIsSubclass(sqlite.InterfaceError, sqlite.Error)
 
     def test_database_error(self):
-        self.assertTrue(issubclass(sqlite.DatabaseError, sqlite.Error),
-                        "DatabaseError is not a subclass of Error")
+        self.assertIsSubclass(sqlite.DatabaseError, sqlite.Error)
 
     def test_data_error(self):
-        self.assertTrue(issubclass(sqlite.DataError, sqlite.DatabaseError),
-                        "DataError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.DataError, sqlite.DatabaseError)
 
     def test_operational_error(self):
-        self.assertTrue(issubclass(sqlite.OperationalError, sqlite.DatabaseError),
-                        "OperationalError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.OperationalError, sqlite.DatabaseError)
 
     def test_integrity_error(self):
-        self.assertTrue(issubclass(sqlite.IntegrityError, sqlite.DatabaseError),
-                        "IntegrityError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.IntegrityError, sqlite.DatabaseError)
 
     def test_internal_error(self):
-        self.assertTrue(issubclass(sqlite.InternalError, sqlite.DatabaseError),
-                        "InternalError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.InternalError, sqlite.DatabaseError)
 
     def test_programming_error(self):
-        self.assertTrue(issubclass(sqlite.ProgrammingError, sqlite.DatabaseError),
-                        "ProgrammingError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.ProgrammingError, sqlite.DatabaseError)
 
     def test_not_supported_error(self):
-        self.assertTrue(issubclass(sqlite.NotSupportedError,
-                                   sqlite.DatabaseError),
-                        "NotSupportedError is not a subclass of DatabaseError")
+        self.assertIsSubclass(sqlite.NotSupportedError, sqlite.DatabaseError)
 
     def test_module_constants(self):
         consts = [
@@ -285,7 +262,7 @@ class ModuleTests(unittest.TestCase):
             consts.append("SQLITE_IOERR_CORRUPTFS")
         for const in consts:
             with self.subTest(const=const):
-                self.assertTrue(hasattr(sqlite, const))
+                self.assertHasAttr(sqlite, const)
 
     def test_error_code_on_exception(self):
         err_msg = "unable to open database file"
@@ -299,7 +276,7 @@ class ModuleTests(unittest.TestCase):
                 sqlite.connect(db)
             e = cm.exception
             self.assertEqual(e.sqlite_errorcode, err_code)
-            self.assertTrue(e.sqlite_errorname.startswith("SQLITE_CANTOPEN"))
+            self.assertStartsWith(e.sqlite_errorname, "SQLITE_CANTOPEN")
 
     def test_extended_error_code_on_exception(self):
         with memory_database() as con:
@@ -436,7 +413,7 @@ class ConnectionTests(unittest.TestCase):
         ]
         for exc in exceptions:
             with self.subTest(exc=exc):
-                self.assertTrue(hasattr(self.cx, exc))
+                self.assertHasAttr(self.cx, exc)
                 self.assertIs(getattr(sqlite, exc), getattr(self.cx, exc))
 
     def test_interrupt_on_closed_db(self):
@@ -671,14 +648,21 @@ class OpenTests(unittest.TestCase):
             self.assertTrue(os.path.exists(path))
             cx.execute(self._sql)
 
-    @unittest.skipIf(sys.platform == "win32", "skipped on Windows")
-    @unittest.skipIf(is_apple, "skipped on Apple platforms")
-    @unittest.skipIf(is_emscripten or is_wasi, "not supported on Emscripten/WASI")
-    @unittest.skipUnless(TESTFN_UNDECODABLE, "only works if there are undecodable paths")
-    def test_open_with_undecodable_path(self):
+    def get_undecodable_path(self):
         path = TESTFN_UNDECODABLE
+        if not path:
+            self.skipTest("only works if there are undecodable paths")
+        try:
+            open(path, 'wb').close()
+        except OSError:
+            self.skipTest(f"can't create file with undecodable path {path!r}")
+        unlink(path)
+        return path
+
+    @unittest.skipIf(sys.platform == "win32", "skipped on Windows")
+    def test_open_with_undecodable_path(self):
+        path = self.get_undecodable_path()
         self.addCleanup(unlink, path)
-        self.assertFalse(os.path.exists(path))
         with contextlib.closing(sqlite.connect(path)) as cx:
             self.assertTrue(os.path.exists(path))
             cx.execute(self._sql)
@@ -718,14 +702,10 @@ class OpenTests(unittest.TestCase):
                 cx.execute(self._sql)
 
     @unittest.skipIf(sys.platform == "win32", "skipped on Windows")
-    @unittest.skipIf(is_apple, "skipped on Apple platforms")
-    @unittest.skipIf(is_emscripten or is_wasi, "not supported on Emscripten/WASI")
-    @unittest.skipUnless(TESTFN_UNDECODABLE, "only works if there are undecodable paths")
     def test_open_undecodable_uri(self):
-        path = TESTFN_UNDECODABLE
+        path = self.get_undecodable_path()
         self.addCleanup(unlink, path)
         uri = "file:" + urllib.parse.quote(path)
-        self.assertFalse(os.path.exists(path))
         with contextlib.closing(sqlite.connect(uri, uri=True)) as cx:
             self.assertTrue(os.path.exists(path))
             cx.execute(self._sql)
@@ -889,9 +869,8 @@ class CursorTests(unittest.TestCase):
         msg = "Binding.*is a named parameter"
         for query, params in dataset:
             with self.subTest(query=query, params=params):
-                with self.assertWarnsRegex(DeprecationWarning, msg) as cm:
+                with self.assertRaisesRegex(sqlite.ProgrammingError, msg) as cm:
                     self.cu.execute(query, params)
-                self.assertEqual(cm.filename,  __file__)
 
     def test_execute_indexed_nameless_params(self):
         # See gh-117995: "'?1' is considered a named placeholder"
@@ -1446,7 +1425,7 @@ class BlobTests(unittest.TestCase):
             self.blob + self.blob
         with self.assertRaisesRegex(TypeError, "unsupported operand"):
             self.blob * 5
-        with self.assertRaisesRegex(TypeError, "is not iterable"):
+        with self.assertRaisesRegex(TypeError, "is not.+iterable"):
             b"a" in self.blob
 
     def test_blob_context_manager(self):
@@ -2008,8 +1987,8 @@ class RowTests(unittest.TestCase):
         cu = self.cx.execute("SELECT 1")
         row = cu.fetchone()
 
-        self.assertTrue(issubclass(sqlite.Row, Sequence))
-        self.assertTrue(isinstance(row, Sequence))
+        self.assertIsSubclass(sqlite.Row, Sequence)
+        self.assertIsInstance(row, Sequence)
 
 
 if __name__ == "__main__":

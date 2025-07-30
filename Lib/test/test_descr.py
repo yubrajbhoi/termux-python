@@ -7,6 +7,7 @@ import pickle
 import random
 import string
 import sys
+import textwrap
 import types
 import unittest
 import warnings
@@ -15,7 +16,7 @@ import weakref
 from copy import deepcopy
 from contextlib import redirect_stdout
 from test import support
-from test.support.testcase import ExtraAssertions
+from test.support.script_helper import assert_python_ok
 
 try:
     import _testcapi
@@ -404,11 +405,11 @@ class OperatorsTest(unittest.TestCase):
         self.assertEqual(range(sys.maxsize).__len__(), sys.maxsize)
 
 
-class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
+class ClassPropertiesAndMethods(unittest.TestCase):
 
     def test_python_dicts(self):
         # Testing Python subclass of dict...
-        self.assertTrue(issubclass(dict, dict))
+        self.assertIsSubclass(dict, dict)
         self.assertIsInstance({}, dict)
         d = dict()
         self.assertEqual(d, {})
@@ -432,7 +433,7 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
                 self.state = state
             def getstate(self):
                 return self.state
-        self.assertTrue(issubclass(C, dict))
+        self.assertIsSubclass(C, dict)
         a1 = C(12)
         self.assertEqual(a1.state, 12)
         a2 = C(foo=1, bar=2)
@@ -1047,15 +1048,15 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
 
         m = types.ModuleType("m")
         self.assertTrue(m.__class__ is types.ModuleType)
-        self.assertFalse(hasattr(m, "a"))
+        self.assertNotHasAttr(m, "a")
 
         m.__class__ = SubType
         self.assertTrue(m.__class__ is SubType)
-        self.assertTrue(hasattr(m, "a"))
+        self.assertHasAttr(m, "a")
 
         m.__class__ = types.ModuleType
         self.assertTrue(m.__class__ is types.ModuleType)
-        self.assertFalse(hasattr(m, "a"))
+        self.assertNotHasAttr(m, "a")
 
         # Make sure that builtin immutable objects don't support __class__
         # assignment, because the object instances may be interned.
@@ -1102,6 +1103,7 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         with self.assertRaises(TypeError):
             frozenset().__class__ = MyFrozenSet
 
+    @support.thread_unsafe
     def test_slots(self):
         # Testing __slots__...
         class C0(object):
@@ -1585,8 +1587,7 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
             self.fail("classmethod shouldn't accept keyword args")
 
         cm = classmethod(f)
-        cm_dict = {'__annotations__': {},
-                   '__doc__': (
+        cm_dict = {'__doc__': (
                        "f docstring"
                        if support.HAVE_PY_DOCSTRINGS
                        else None
@@ -1601,6 +1602,55 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         self.assertEqual(cm.__dict__, {"x" : 42, **cm_dict})
         del cm.x
         self.assertNotHasAttr(cm, "x")
+
+    def test_classmethod_staticmethod_annotations(self):
+        for deco in (classmethod, staticmethod):
+            @deco
+            def unannotated(cls): pass
+            @deco
+            def annotated(cls) -> int: pass
+
+            for method in (annotated, unannotated):
+                with self.subTest(deco=deco, method=method):
+                    with self.assertRaises(AttributeError):
+                        del unannotated.__annotations__
+
+                    original_annotations = dict(method.__wrapped__.__annotations__)
+                    self.assertNotIn('__annotations__', method.__dict__)
+                    self.assertEqual(method.__annotations__, original_annotations)
+                    self.assertIn('__annotations__', method.__dict__)
+
+                    new_annotations = {"a": "b"}
+                    method.__annotations__ = new_annotations
+                    self.assertEqual(method.__annotations__, new_annotations)
+                    self.assertEqual(method.__wrapped__.__annotations__, original_annotations)
+
+                    del method.__annotations__
+                    self.assertEqual(method.__annotations__, original_annotations)
+
+                    original_annotate = method.__wrapped__.__annotate__
+                    self.assertNotIn('__annotate__', method.__dict__)
+                    self.assertIs(method.__annotate__, original_annotate)
+                    self.assertIn('__annotate__', method.__dict__)
+
+                    new_annotate = lambda: {"annotations": 1}
+                    method.__annotate__ = new_annotate
+                    self.assertIs(method.__annotate__, new_annotate)
+                    self.assertIs(method.__wrapped__.__annotate__, original_annotate)
+
+                    del method.__annotate__
+                    self.assertIs(method.__annotate__, original_annotate)
+
+    def test_staticmethod_annotations_without_dict_access(self):
+        # gh-125017: this used to crash
+        class Spam:
+            def __new__(cls, x, y):
+                pass
+
+        self.assertEqual(Spam.__new__.__annotations__, {})
+        obj = Spam.__dict__['__new__']
+        self.assertIsInstance(obj, staticmethod)
+        self.assertEqual(obj.__annotations__, {})
 
     @support.refcount_test
     def test_refleaks_in_classmethod___init__(self):
@@ -1730,7 +1780,7 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         class E: # *not* subclassing from C
             foo = C.foo
         self.assertEqual(E().foo.__func__, C.foo) # i.e., unbound
-        self.assertTrue(repr(C.foo.__get__(C())).startswith("<bound method "))
+        self.assertStartsWith(repr(C.foo.__get__(C())), "<bound method ")
 
     def test_compattr(self):
         # Testing computed attributes...
@@ -2008,7 +2058,7 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         class E(object):
             foo = C.foo
         self.assertEqual(E().foo.__func__, C.foo) # i.e., unbound
-        self.assertTrue(repr(C.foo.__get__(C(1))).startswith("<bound method "))
+        self.assertStartsWith(repr(C.foo.__get__(C(1))), "<bound method ")
 
     @support.impl_detail("testing error message from implementation")
     def test_methods_in_c(self):
@@ -3183,8 +3233,6 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
             class C(base):
                 def __init__(self, value):
                     self.value = int(value)
-                def __cmp__(self_, other):
-                    self.fail("shouldn't call __cmp__")
                 def __eq__(self, other):
                     if isinstance(other, C):
                         return self.value == other.value
@@ -3466,6 +3514,10 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         self.assertEqual(repr(2 ** I(3)), "I(8)")
         self.assertEqual(repr(I(2) ** 3), "I(8)")
         self.assertEqual(repr(pow(I(2), I(3), I(5))), "I(3)")
+        self.assertEqual(repr(pow(I(2), I(3), 5)), "I(3)")
+        self.assertEqual(repr(pow(I(2), 3, 5)), "I(3)")
+        self.assertEqual(repr(pow(2, I(3), 5)), "I(3)")
+        self.assertEqual(repr(pow(2, 3, I(5))), "3")
         class S(str):
             def __eq__(self, other):
                 return self.lower() == other.lower()
@@ -3609,6 +3661,8 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
                            encoding='latin1', errors='replace')
         self.assertEqual(ba, b'abc\xbd?')
 
+    @support.skip_wasi_stack_overflow()
+    @support.skip_emscripten_stack_overflow()
     def test_recursive_call(self):
         # Testing recursive __call__() by setting to instance of class...
         class A(object):
@@ -3888,6 +3942,8 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         # it as a leak.
         del C.__del__
 
+    @support.skip_emscripten_stack_overflow()
+    @support.skip_wasi_stack_overflow()
     def test_slots_trash(self):
         # Testing slot trash...
         # Deallocating deeply nested slotted trash caused stack overflows
@@ -3978,6 +4034,20 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         with self.assertRaises(TypeError) as cm:
             y = x ** 2
         self.assertIn('unsupported operand type(s) for **', str(cm.exception))
+
+    def test_pow_wrapper_error_messages(self):
+        self.assertRaisesRegex(TypeError,
+                               'expected 1 or 2 arguments, got 0',
+                               int().__pow__)
+        self.assertRaisesRegex(TypeError,
+                               'expected 1 or 2 arguments, got 3',
+                               int().__pow__, 1, 2, 3)
+        self.assertRaisesRegex(TypeError,
+                               'expected 1 or 2 arguments, got 0',
+                               int().__rpow__)
+        self.assertRaisesRegex(TypeError,
+                               'expected 1 or 2 arguments, got 3',
+                               int().__rpow__, 1, 2, 3)
 
     def test_mutable_bases(self):
         # Testing mutable bases...
@@ -4453,6 +4523,8 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
         o.whatever = Provoker(o)
         del o
 
+    @support.skip_wasi_stack_overflow()
+    @support.skip_emscripten_stack_overflow()
     @support.requires_resource('cpu')
     def test_wrapper_segfault(self):
         # SF 927248: deeply nested wrappers could cause stack overflow
@@ -4796,6 +4868,8 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
                 # CALL_METHOD_DESCRIPTOR_O
                 deque.append(thing, thing)
 
+    @support.skip_emscripten_stack_overflow()
+    @support.skip_wasi_stack_overflow()
     def test_repr_as_str(self):
         # Issue #11603: crash or infinite loop when rebinding __str__ as
         # __repr__.
@@ -5006,7 +5080,6 @@ class ClassPropertiesAndMethods(unittest.TestCase, ExtraAssertions):
                 cls.lst = [2**i for i in range(10000)]
         X.descr
 
-    @support.suppress_immortalization()
     def test_remove_subclass(self):
         # bpo-46417: when the last subclass of a type is deleted,
         # remove_subclass() clears the internal dictionary of subclasses:
@@ -5124,8 +5197,8 @@ class DictProxyTests(unittest.TestCase):
         # We can't blindly compare with the repr of another dict as ordering
         # of keys and values is arbitrary and may differ.
         r = repr(self.C.__dict__)
-        self.assertTrue(r.startswith('mappingproxy('), r)
-        self.assertTrue(r.endswith(')'), r)
+        self.assertStartsWith(r, 'mappingproxy(')
+        self.assertEndsWith(r, ')')
         for k, v in self.C.__dict__.items():
             self.assertIn('{!r}: {!r}'.format(k, v), r)
 
@@ -5160,6 +5233,7 @@ class MiscTests(unittest.TestCase):
         # Issue #14199: _PyType_Lookup() has to keep a strong reference to
         # the type MRO because it may be modified during the lookup, if
         # __bases__ is set during the lookup for example.
+        code = textwrap.dedent("""
         class MyKey(object):
             def __hash__(self):
                 return hash('mykey')
@@ -5175,17 +5249,29 @@ class MiscTests(unittest.TestCase):
             mykey = 'from Base2'
             mykey2 = 'from Base2'
 
-        with self.assertWarnsRegex(RuntimeWarning, 'X'):
-            X = type('X', (Base,), {MyKey(): 5})
+        X = type('X', (Base,), {MyKey(): 5})
 
-        # Note that the access below uses getattr() rather than normally
-        # accessing the attribute.  That is done to avoid the bytecode
-        # specializer activating on repeated runs of the test.
+        bases_before = ",".join([c.__name__ for c in X.__bases__])
+        print(f"before={bases_before}")
 
-        # mykey is read from Base
-        self.assertEqual(getattr(X, 'mykey'), 'from Base')
-        # mykey2 is read from Base2 because MyKey.__eq__ has set __bases__
-        self.assertEqual(getattr(X, 'mykey2'), 'from Base2')
+        # mykey is initially read from Base, however, the lookup will be perfomed
+        # again if specialization fails. The second lookup will use the new
+        # mro set by __eq__.
+        print(X.mykey)
+
+        bases_after = ",".join([c.__name__ for c in X.__bases__])
+        print(f"after={bases_after}")
+
+        # mykey2 is read from Base2 because MyKey.__eq__ has set __bases_
+        print(f"mykey2={X.mykey2}")
+        """)
+        _, out, err = assert_python_ok("-c", code)
+        err = err.decode()
+        self.assertRegex(err, "RuntimeWarning: .*X")
+        out = out.decode()
+        self.assertRegex(out, "before=Base")
+        self.assertRegex(out, "after=Base2")
+        self.assertRegex(out, "mykey2=from Base2")
 
 
 class PicklingTests(unittest.TestCase):
@@ -5408,6 +5494,7 @@ class PicklingTests(unittest.TestCase):
                                      {pickle.dumps, pickle._dumps},
                                      {pickle.loads, pickle._loads}))
 
+    @support.thread_unsafe
     def test_pickle_slots(self):
         # Tests pickling of classes with __slots__.
 
@@ -5475,6 +5562,7 @@ class PicklingTests(unittest.TestCase):
                 y = pickle_copier.copy(x)
                 self._assert_is_copy(x, y)
 
+    @support.thread_unsafe
     def test_reduce_copying(self):
         # Tests pickling and copying new-style classes and objects.
         global C1

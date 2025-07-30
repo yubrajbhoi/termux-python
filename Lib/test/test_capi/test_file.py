@@ -1,7 +1,6 @@
 import io
 import os
 import unittest
-import warnings
 from test import support
 from test.support import import_helper, os_helper, warnings_helper
 
@@ -224,7 +223,99 @@ class CAPIFileTest(unittest.TestCase):
         with open(filename, "r") as fp:
             self.assertEqual(fp.read(), "text[\\udc80]")
 
-    # TODO: Test Py_UniversalNewlineFgets()
+    def test_py_fopen(self):
+        # Test Py_fopen() and Py_fclose()
+        py_fopen = _testcapi.py_fopen
+
+        with open(__file__, "rb") as fp:
+            source = fp.read()
+
+        for filename in (__file__, os.fsencode(__file__)):
+            with self.subTest(filename=filename):
+                data = py_fopen(filename, "rb")
+                self.assertEqual(data, source[:256])
+
+                data = py_fopen(os_helper.FakePath(filename), "rb")
+                self.assertEqual(data, source[:256])
+
+        filenames = [
+            os_helper.TESTFN,
+            os.fsencode(os_helper.TESTFN),
+        ]
+        if os_helper.TESTFN_UNDECODABLE is not None:
+            filenames.append(os_helper.TESTFN_UNDECODABLE)
+            filenames.append(os.fsdecode(os_helper.TESTFN_UNDECODABLE))
+        if os_helper.TESTFN_UNENCODABLE is not None:
+            filenames.append(os_helper.TESTFN_UNENCODABLE)
+        for filename in filenames:
+            with self.subTest(filename=filename):
+                try:
+                    with open(filename, "wb") as fp:
+                        fp.write(source)
+                except OSError:
+                    # TESTFN_UNDECODABLE cannot be used to create a file
+                    # on macOS/WASI.
+                    filename = None
+                    continue
+                try:
+                    data = py_fopen(filename, "rb")
+                    self.assertEqual(data, source[:256])
+                finally:
+                    os_helper.unlink(filename)
+
+        # embedded null character/byte in the filename
+        with self.assertRaises(ValueError):
+            py_fopen("a\x00b", "rb")
+        with self.assertRaises(ValueError):
+            py_fopen(b"a\x00b", "rb")
+
+        # non-ASCII mode failing with "Invalid argument"
+        with self.assertRaises(OSError):
+            py_fopen(__file__, b"\xc2\x80")
+        with self.assertRaises(OSError):
+            # \x98 is invalid in cp1250, cp1251, cp1257
+            # \x9d is invalid in cp1252-cp1255, cp1258
+            py_fopen(__file__, b"\xc2\x98\xc2\x9d")
+        # UnicodeDecodeError can come from the audit hook code
+        with self.assertRaises((UnicodeDecodeError, OSError)):
+            py_fopen(__file__, b"\x98\x9d")
+
+        # invalid filename type
+        for invalid_type in (123, object()):
+            with self.subTest(filename=invalid_type):
+                with self.assertRaises(TypeError):
+                    py_fopen(invalid_type, "rb")
+
+        if support.MS_WINDOWS:
+            with self.assertRaises(OSError):
+                # On Windows, the file mode is limited to 10 characters
+                py_fopen(__file__, "rt+, ccs=UTF-8")
+
+        # CRASHES py_fopen(NULL, 'rb')
+        # CRASHES py_fopen(__file__, NULL)
+
+    def test_py_universalnewlinefgets(self):
+        py_universalnewlinefgets = _testcapi.py_universalnewlinefgets
+        filename = os_helper.TESTFN
+        self.addCleanup(os_helper.unlink, filename)
+
+        with open(filename, "wb") as fp:
+            fp.write(b"line1\nline2")
+
+        line = py_universalnewlinefgets(filename, 1000)
+        self.assertEqual(line, b"line1\n")
+
+        with open(filename, "wb") as fp:
+            fp.write(b"line2\r\nline3")
+
+        line = py_universalnewlinefgets(filename, 1000)
+        self.assertEqual(line, b"line2\n")
+
+        with open(filename, "wb") as fp:
+            fp.write(b"line3\rline4")
+
+        line = py_universalnewlinefgets(filename, 1000)
+        self.assertEqual(line, b"line3\n")
 
     # PyFile_SetOpenCodeHook() and PyFile_OpenCode() are tested by
     # test_embed.test_open_code_hook()

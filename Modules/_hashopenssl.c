@@ -24,7 +24,6 @@
 
 #include "Python.h"
 #include "pycore_hashtable.h"
-#include "pycore_pyhash.h"               // _Py_HashBytes()
 #include "pycore_strhex.h"               // _Py_strhex()
 #include "pycore_pyatomic_ft_wrappers.h" // FT_ATOMIC_LOAD_PTR_RELAXED
 #include "hashlib.h"
@@ -187,7 +186,7 @@ static const py_hashentry_t py_hashes[] = {
 
 static Py_uhash_t
 py_hashentry_t_hash_name(const void *key) {
-    return _Py_HashBytes(key, strlen((const char *)key));
+    return Py_HashBuffer(key, strlen((const char *)key));
 }
 
 static int
@@ -282,6 +281,8 @@ typedef struct {
     PyMutex mutex;  /* OpenSSL context lock */
 } EVPobject;
 
+#define EVPobject_CAST(op)  ((EVPobject *)(op))
+
 typedef struct {
     PyObject_HEAD
     HMAC_CTX *ctx;            /* OpenSSL hmac context */
@@ -289,6 +290,8 @@ typedef struct {
     bool use_mutex;
     PyMutex mutex;  /* HMAC context lock */
 } HMACobject;
+
+#define HMACobject_CAST(op) ((HMACobject *)(op))
 
 #include "clinic/_hashopenssl.c.h"
 /*[clinic input]
@@ -497,7 +500,7 @@ py_digest_by_digestmod(PyObject *module, PyObject *digestmod, enum Py_hash_type 
 static EVPobject *
 newEVPobject(PyTypeObject *type)
 {
-    EVPobject *retval = (EVPobject *)PyObject_New(EVPobject, type);
+    EVPobject *retval = PyObject_New(EVPobject, type);
     if (retval == NULL) {
         return NULL;
     }
@@ -536,8 +539,9 @@ EVP_hash(EVPobject *self, const void *vp, Py_ssize_t len)
 /* Internal methods for a hash object */
 
 static void
-EVP_dealloc(EVPobject *self)
+EVP_dealloc(PyObject *op)
 {
+    EVPobject *self = EVPobject_CAST(op);
     PyTypeObject *tp = Py_TYPE(self);
     EVP_MD_CTX_free(self->ctx);
     PyObject_Free(self);
@@ -667,8 +671,8 @@ Update this hash object's state with the provided string.
 [clinic start generated code]*/
 
 static PyObject *
-EVP_update(EVPobject *self, PyObject *obj)
-/*[clinic end generated code: output=ec1d55ed2432e966 input=9b30ec848f015501]*/
+EVP_update_impl(EVPobject *self, PyObject *obj)
+/*[clinic end generated code: output=d56f91c68348f95f input=9b30ec848f015501]*/
 {
     int result;
     Py_buffer view;
@@ -704,24 +708,25 @@ static PyMethodDef EVP_methods[] = {
 };
 
 static PyObject *
-EVP_get_block_size(EVPobject *self, void *closure)
+EVP_get_block_size(PyObject *op, void *Py_UNUSED(closure))
 {
-    long block_size;
-    block_size = EVP_MD_CTX_block_size(self->ctx);
+    EVPobject *self = EVPobject_CAST(op);
+    long block_size = EVP_MD_CTX_block_size(self->ctx);
     return PyLong_FromLong(block_size);
 }
 
 static PyObject *
-EVP_get_digest_size(EVPobject *self, void *closure)
+EVP_get_digest_size(PyObject *op, void *Py_UNUSED(closure))
 {
-    long size;
-    size = EVP_MD_CTX_size(self->ctx);
+    EVPobject *self = EVPobject_CAST(op);
+    long size = EVP_MD_CTX_size(self->ctx);
     return PyLong_FromLong(size);
 }
 
 static PyObject *
-EVP_get_name(EVPobject *self, void *closure)
+EVP_get_name(PyObject *op, void *Py_UNUSED(closure))
 {
+    EVPobject *self = EVPobject_CAST(op);
     const EVP_MD *md = EVP_MD_CTX_md(self->ctx);
     if (md == NULL) {
         notify_ssl_error_occurred();
@@ -731,33 +736,23 @@ EVP_get_name(EVPobject *self, void *closure)
 }
 
 static PyGetSetDef EVP_getseters[] = {
-    {"digest_size",
-     (getter)EVP_get_digest_size, NULL,
-     NULL,
-     NULL},
-    {"block_size",
-     (getter)EVP_get_block_size, NULL,
-     NULL,
-     NULL},
-    {"name",
-     (getter)EVP_get_name, NULL,
-     NULL,
-     PyDoc_STR("algorithm name.")},
+    {"digest_size", EVP_get_digest_size, NULL, NULL, NULL},
+    {"block_size", EVP_get_block_size, NULL, NULL, NULL},
+    {"name", EVP_get_name, NULL, NULL, PyDoc_STR("algorithm name.")},
     {NULL}  /* Sentinel */
 };
 
 
 static PyObject *
-EVP_repr(EVPobject *self)
+EVP_repr(PyObject *self)
 {
-    PyObject *name_obj, *repr;
-    name_obj = py_digest_name(EVP_MD_CTX_md(self->ctx));
-    if (!name_obj) {
+    PyObject *name = EVP_get_name(self, NULL);
+    if (name == NULL) {
         return NULL;
     }
-    repr = PyUnicode_FromFormat("<%U %s object @ %p>",
-                                name_obj, Py_TYPE(self)->tp_name, self);
-    Py_DECREF(name_obj);
+    PyObject *repr = PyUnicode_FromFormat("<%U %T object @ %p>",
+                                          name, self, self);
+    Py_DECREF(name);
     return repr;
 }
 
@@ -902,16 +897,13 @@ static PyMethodDef EVPXOF_methods[] = {
 
 
 static PyObject *
-EVPXOF_get_digest_size(EVPobject *self, void *closure)
+EVPXOF_get_digest_size(PyObject *Py_UNUSED(self), void *Py_UNUSED(closure))
 {
     return PyLong_FromLong(0);
 }
 
 static PyGetSetDef EVPXOF_getseters[] = {
-    {"digest_size",
-     (getter)EVPXOF_get_digest_size, NULL,
-     NULL,
-     NULL},
+    {"digest_size", EVPXOF_get_digest_size, NULL, NULL, NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -1414,19 +1406,15 @@ end:
 
 #ifdef PY_OPENSSL_HAS_SCRYPT
 
-/* XXX: Parameters salt, n, r and p should be required keyword-only parameters.
-   They are optional in the Argument Clinic declaration only due to a
-   limitation of PyArg_ParseTupleAndKeywords. */
-
 /*[clinic input]
 _hashlib.scrypt
 
     password: Py_buffer
     *
-    salt: Py_buffer = None
-    n as n_obj: object(subclass_of='&PyLong_Type') = None
-    r as r_obj: object(subclass_of='&PyLong_Type') = None
-    p as p_obj: object(subclass_of='&PyLong_Type') = None
+    salt: Py_buffer
+    n: unsigned_long
+    r: unsigned_long
+    p: unsigned_long
     maxmem: long = 0
     dklen: long = 64
 
@@ -1436,14 +1424,13 @@ scrypt password-based key derivation function.
 
 static PyObject *
 _hashlib_scrypt_impl(PyObject *module, Py_buffer *password, Py_buffer *salt,
-                     PyObject *n_obj, PyObject *r_obj, PyObject *p_obj,
+                     unsigned long n, unsigned long r, unsigned long p,
                      long maxmem, long dklen)
-/*[clinic end generated code: output=14849e2aa2b7b46c input=48a7d63bf3f75c42]*/
+/*[clinic end generated code: output=d424bc3e8c6b9654 input=0c9a84230238fd79]*/
 {
     PyObject *key_obj = NULL;
     char *key;
     int retval;
-    unsigned long n, r, p;
 
     if (password->len > INT_MAX) {
         PyErr_SetString(PyExc_OverflowError,
@@ -1451,40 +1438,15 @@ _hashlib_scrypt_impl(PyObject *module, Py_buffer *password, Py_buffer *salt,
         return NULL;
     }
 
-    if (salt->buf == NULL) {
-        PyErr_SetString(PyExc_TypeError,
-                        "salt is required");
-        return NULL;
-    }
     if (salt->len > INT_MAX) {
         PyErr_SetString(PyExc_OverflowError,
                         "salt is too long.");
         return NULL;
     }
 
-    n = PyLong_AsUnsignedLong(n_obj);
-    if (n == (unsigned long) -1 && PyErr_Occurred()) {
-        PyErr_SetString(PyExc_TypeError,
-                        "n is required and must be an unsigned int");
-        return NULL;
-    }
     if (n < 2 || n & (n - 1)) {
         PyErr_SetString(PyExc_ValueError,
                         "n must be a power of 2.");
-        return NULL;
-    }
-
-    r = PyLong_AsUnsignedLong(r_obj);
-    if (r == (unsigned long) -1 && PyErr_Occurred()) {
-        PyErr_SetString(PyExc_TypeError,
-                        "r is required and must be an unsigned int");
-        return NULL;
-    }
-
-    p = PyLong_AsUnsignedLong(p_obj);
-    if (p == (unsigned long) -1 && PyErr_Occurred()) {
-        PyErr_SetString(PyExc_TypeError,
-                        "p is required and must be an unsigned int");
         return NULL;
     }
 
@@ -1776,8 +1738,9 @@ _hashlib_HMAC_copy_impl(HMACobject *self)
 }
 
 static void
-_hmac_dealloc(HMACobject *self)
+_hmac_dealloc(PyObject *op)
 {
+    HMACobject *self = HMACobject_CAST(op);
     PyTypeObject *tp = Py_TYPE(self);
     if (self->ctx != NULL) {
         HMAC_CTX_free(self->ctx);
@@ -1788,8 +1751,9 @@ _hmac_dealloc(HMACobject *self)
 }
 
 static PyObject *
-_hmac_repr(HMACobject *self)
+_hmac_repr(PyObject *op)
 {
+    HMACobject *self = HMACobject_CAST(op);
     const EVP_MD *md = _hashlib_hmac_get_md(self);
     if (md == NULL) {
         return NULL;
@@ -1891,22 +1855,25 @@ _hashlib_HMAC_hexdigest_impl(HMACobject *self)
 }
 
 static PyObject *
-_hashlib_hmac_get_digest_size(HMACobject *self, void *closure)
+_hashlib_hmac_get_digest_size(PyObject *op, void *Py_UNUSED(closure))
 {
+    HMACobject *self = HMACobject_CAST(op);
     unsigned int digest_size = _hashlib_hmac_digest_size(self);
     return digest_size == 0 ? NULL : PyLong_FromLong(digest_size);
 }
 
 static PyObject *
-_hashlib_hmac_get_block_size(HMACobject *self, void *closure)
+_hashlib_hmac_get_block_size(PyObject *op, void *Py_UNUSED(closure))
 {
+    HMACobject *self = HMACobject_CAST(op);
     const EVP_MD *md = _hashlib_hmac_get_md(self);
     return md == NULL ? NULL : PyLong_FromLong(EVP_MD_block_size(md));
 }
 
 static PyObject *
-_hashlib_hmac_get_name(HMACobject *self, void *closure)
+_hashlib_hmac_get_name(PyObject *op, void *Py_UNUSED(closure))
 {
+    HMACobject *self = HMACobject_CAST(op);
     const EVP_MD *md = _hashlib_hmac_get_md(self);
     if (md == NULL) {
         return NULL;
@@ -1929,9 +1896,9 @@ static PyMethodDef HMAC_methods[] = {
 };
 
 static PyGetSetDef HMAC_getset[] = {
-    {"digest_size", (getter)_hashlib_hmac_get_digest_size, NULL, NULL, NULL},
-    {"block_size", (getter)_hashlib_hmac_get_block_size, NULL, NULL, NULL},
-    {"name", (getter)_hashlib_hmac_get_name, NULL, NULL, NULL},
+    {"digest_size", _hashlib_hmac_get_digest_size, NULL, NULL, NULL},
+    {"block_size", _hashlib_hmac_get_block_size, NULL, NULL, NULL},
+    {"name", _hashlib_hmac_get_name, NULL, NULL, NULL},
     {NULL}  /* Sentinel */
 };
 
@@ -1953,8 +1920,8 @@ digest_size -- number of bytes in digest() output\n");
 
 static PyType_Slot HMACtype_slots[] = {
     {Py_tp_doc, (char *)hmactype_doc},
-    {Py_tp_repr, (reprfunc)_hmac_repr},
-    {Py_tp_dealloc,(destructor)_hmac_dealloc},
+    {Py_tp_repr, _hmac_repr},
+    {Py_tp_dealloc, _hmac_dealloc},
     {Py_tp_methods, HMAC_methods},
     {Py_tp_getset, HMAC_getset},
     {0, NULL}
@@ -2247,7 +2214,7 @@ hashlib_clear(PyObject *m)
 static void
 hashlib_free(void *m)
 {
-    hashlib_clear((PyObject *)m);
+    (void)hashlib_clear((PyObject *)m);
 }
 
 /* Py_mod_exec functions */
@@ -2379,6 +2346,16 @@ hashlib_exception(PyObject *module)
     return 0;
 }
 
+static int
+hashlib_constants(PyObject *module)
+{
+    if (PyModule_AddIntConstant(module, "_GIL_MINSIZE",
+                                HASHLIB_GIL_MINSIZE) < 0)
+    {
+        return -1;
+    }
+    return 0;
+}
 
 static PyModuleDef_Slot hashlib_slots[] = {
     {Py_mod_exec, hashlib_init_hashtable},
@@ -2388,6 +2365,7 @@ static PyModuleDef_Slot hashlib_slots[] = {
     {Py_mod_exec, hashlib_md_meth_names},
     {Py_mod_exec, hashlib_init_constructors},
     {Py_mod_exec, hashlib_exception},
+    {Py_mod_exec, hashlib_constants},
     {Py_mod_multiple_interpreters, Py_MOD_PER_INTERPRETER_GIL_SUPPORTED},
     {Py_mod_gil, Py_MOD_GIL_NOT_USED},
     {0, NULL}

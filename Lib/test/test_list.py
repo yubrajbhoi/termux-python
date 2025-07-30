@@ -1,8 +1,10 @@
+import signal
 import sys
 import textwrap
-from test import list_tests
+from test import list_tests, support
 from test.support import cpython_only
-from test.support.script_helper import assert_python_ok
+from test.support.import_helper import import_module
+from test.support.script_helper import assert_python_failure, assert_python_ok
 import pickle
 import unittest
 
@@ -323,6 +325,25 @@ class ListTest(list_tests.CommonTest):
                 pass
             a.append(4)
             self.assertEqual(list(it), [])
+
+    @support.cpython_only
+    def test_no_memory(self):
+        # gh-118331: Make sure we don't crash if list allocation fails
+        import_module("_testcapi")
+        code = textwrap.dedent("""
+        import _testcapi, sys
+        # Prime the freelist
+        l = [None]
+        del l
+        _testcapi.set_nomemory(0)
+        l = [None]
+        """)
+        rc, _, _ = assert_python_failure("-c", code)
+        if support.MS_WINDOWS:
+            # STATUS_ACCESS_VIOLATION
+            self.assertNotEqual(rc, 0xC0000005)
+        else:
+            self.assertNotEqual(rc, -int(signal.SIGSEGV))
 
     def test_deopt_from_append_list(self):
         # gh-132011: it used to crash, because

@@ -38,6 +38,10 @@ try:
     import lzma
 except ImportError:
     lzma = None
+try:
+    from compression import zstd
+except ImportError:
+    zstd = None
 
 def sha256sum(data):
     return sha256(data).hexdigest()
@@ -48,6 +52,7 @@ tarname = support.findfile("testtar.tar", subdir="archivetestdata")
 gzipname = os.path.join(TEMPDIR, "testtar.tar.gz")
 bz2name = os.path.join(TEMPDIR, "testtar.tar.bz2")
 xzname = os.path.join(TEMPDIR, "testtar.tar.xz")
+zstname = os.path.join(TEMPDIR, "testtar.tar.zst")
 tmpname = os.path.join(TEMPDIR, "tmp.tar")
 dotlessname = os.path.join(TEMPDIR, "testtar")
 
@@ -90,6 +95,12 @@ class LzmaTest:
     open = lzma.LZMAFile if lzma else None
     taropen = tarfile.TarFile.xzopen
 
+@support.requires_zstd()
+class ZstdTest:
+    tarname = zstname
+    suffix = 'zst'
+    open = zstd.ZstdFile if zstd else None
+    taropen = tarfile.TarFile.zstopen
 
 class ReadTest(TarTest):
 
@@ -271,6 +282,8 @@ class Bz2UstarReadTest(Bz2Test, UstarReadTest):
 class LzmaUstarReadTest(LzmaTest, UstarReadTest):
     pass
 
+class ZstdUstarReadTest(ZstdTest, UstarReadTest):
+    pass
 
 class ListTest(ReadTest, unittest.TestCase):
 
@@ -375,6 +388,8 @@ class Bz2ListTest(Bz2Test, ListTest):
 class LzmaListTest(LzmaTest, ListTest):
     pass
 
+class ZstdListTest(ZstdTest, ListTest):
+    pass
 
 class CommonReadTest(ReadTest):
 
@@ -722,6 +737,24 @@ class MiscReadTestBase(CommonReadTest):
             tar.close()
             os_helper.rmtree(DIR)
 
+    @staticmethod
+    def test_extractall_default_filter():
+        # Test that the default filter is now "data", and the other filter types are not used.
+        DIR = pathlib.Path(TEMPDIR) / "extractall_default_filter"
+        with (
+            os_helper.temp_dir(DIR),
+            tarfile.open(tarname, encoding="iso8859-1") as tar,
+            unittest.mock.patch("tarfile.data_filter", wraps=tarfile.data_filter) as mock_data_filter,
+            unittest.mock.patch("tarfile.tar_filter", wraps=tarfile.tar_filter) as mock_tar_filter,
+            unittest.mock.patch("tarfile.fully_trusted_filter", wraps=tarfile.fully_trusted_filter) as mock_ft_filter
+        ):
+            directories = [t for t in tar if t.isdir()]
+            tar.extractall(DIR, directories)
+
+            mock_data_filter.assert_called()
+            mock_ft_filter.assert_not_called()
+            mock_tar_filter.assert_not_called()
+
     @os_helper.skip_unless_working_chmod
     def test_extract_directory(self):
         dirtype = "ustar/dirtype"
@@ -737,31 +770,6 @@ class MiscReadTestBase(CommonReadTest):
                     self.assertEqual(os.stat(extracted).st_mode & 0o777, 0o755)
         finally:
             os_helper.rmtree(DIR)
-
-    def test_deprecation_if_no_filter_passed_to_extractall(self):
-        DIR = pathlib.Path(TEMPDIR) / "extractall"
-        with (
-            os_helper.temp_dir(DIR),
-            tarfile.open(tarname, encoding="iso8859-1") as tar
-        ):
-            directories = [t for t in tar if t.isdir()]
-            with self.assertWarnsRegex(DeprecationWarning, "Use the filter argument") as cm:
-                tar.extractall(DIR, directories)
-            # check that the stacklevel of the deprecation warning is correct:
-            self.assertEqual(cm.filename, __file__)
-
-    def test_deprecation_if_no_filter_passed_to_extract(self):
-        dirtype = "ustar/dirtype"
-        DIR = pathlib.Path(TEMPDIR) / "extractall"
-        with (
-            os_helper.temp_dir(DIR),
-            tarfile.open(tarname, encoding="iso8859-1") as tar
-        ):
-            tarinfo = tar.getmember(dirtype)
-            with self.assertWarnsRegex(DeprecationWarning, "Use the filter argument") as cm:
-                tar.extract(tarinfo, path=DIR)
-            # check that the stacklevel of the deprecation warning is correct:
-            self.assertEqual(cm.filename, __file__)
 
     def test_extractall_pathlike_dir(self):
         DIR = os.path.join(TEMPDIR, "extractall")
@@ -844,6 +852,8 @@ class Bz2MiscReadTest(Bz2Test, MiscReadTestBase, unittest.TestCase):
 class LzmaMiscReadTest(LzmaTest, MiscReadTestBase, unittest.TestCase):
     pass
 
+class ZstdMiscReadTest(ZstdTest, MiscReadTestBase, unittest.TestCase):
+    pass
 
 class StreamReadTest(CommonReadTest, unittest.TestCase):
 
@@ -916,6 +926,9 @@ class Bz2StreamReadTest(Bz2Test, StreamReadTest):
 class LzmaStreamReadTest(LzmaTest, StreamReadTest):
     pass
 
+class ZstdStreamReadTest(ZstdTest, StreamReadTest):
+    pass
+
 class TarStreamModeReadTest(StreamModeTest, unittest.TestCase):
 
     def test_stream_mode_no_cache(self):
@@ -930,6 +943,9 @@ class Bz2StreamModeReadTest(Bz2Test, TarStreamModeReadTest):
     pass
 
 class LzmaStreamModeReadTest(LzmaTest, TarStreamModeReadTest):
+    pass
+
+class ZstdStreamModeReadTest(ZstdTest, TarStreamModeReadTest):
     pass
 
 class DetectReadTest(TarTest, unittest.TestCase):
@@ -993,6 +1009,8 @@ class Bz2DetectReadTest(Bz2Test, DetectReadTest):
 class LzmaDetectReadTest(LzmaTest, DetectReadTest):
     pass
 
+class ZstdDetectReadTest(ZstdTest, DetectReadTest):
+    pass
 
 class GzipBrokenHeaderCorrectException(GzipTest, unittest.TestCase):
     """
@@ -1632,7 +1650,7 @@ class WriteTest(WriteTestBase, unittest.TestCase):
             try:
                 for t in tar:
                     if t.name != ".":
-                        self.assertTrue(t.name.startswith("./"), t.name)
+                        self.assertStartsWith(t.name, "./")
             finally:
                 tar.close()
 
@@ -1673,6 +1691,8 @@ class Bz2WriteTest(Bz2Test, WriteTest):
 class LzmaWriteTest(LzmaTest, WriteTest):
     pass
 
+class ZstdWriteTest(ZstdTest, WriteTest):
+    pass
 
 class StreamWriteTest(WriteTestBase, unittest.TestCase):
 
@@ -1733,6 +1753,9 @@ class Bz2StreamWriteTest(Bz2Test, StreamWriteTest):
 
 class LzmaStreamWriteTest(LzmaTest, StreamWriteTest):
     decompressor = lzma.LZMADecompressor if lzma else None
+
+class ZstdStreamWriteTest(ZstdTest, StreamWriteTest):
+    decompressor = zstd.ZstdDecompressor if zstd else None
 
 class _CompressedWriteTest(TarTest):
     # This is not actually a standalone test.
@@ -2048,6 +2071,14 @@ class LzmaCreateTest(LzmaTest, CreateTest):
         with tarfile.open(tmpname, self.mode, preset=1) as tobj:
             tobj.add(self.file_path)
 
+
+class ZstdCreateTest(ZstdTest, CreateTest):
+
+    # Unlike gz and bz2, zstd uses the level keyword instead of compresslevel.
+    # It does not allow for level to be specified when reading.
+    def test_create_with_level(self):
+        with tarfile.open(tmpname, self.mode, level=1) as tobj:
+            tobj.add(self.file_path)
 
 class CreateWithXModeTest(CreateTest):
 
@@ -2530,6 +2561,8 @@ class Bz2AppendTest(Bz2Test, AppendTestBase, unittest.TestCase):
 class LzmaAppendTest(LzmaTest, AppendTestBase, unittest.TestCase):
     pass
 
+class ZstdAppendTest(ZstdTest, AppendTestBase, unittest.TestCase):
+    pass
 
 class LimitsTest(unittest.TestCase):
 
@@ -2867,7 +2900,7 @@ class CommandLineTest(unittest.TestCase):
                  support.findfile('tokenize_tests-no-coding-cookie-'
                                   'and-utf8-bom-sig-only.txt',
                                   subdir='tokenizedata')]
-        for filetype in (GzipTest, Bz2Test, LzmaTest):
+        for filetype in (GzipTest, Bz2Test, LzmaTest, ZstdTest):
             if not filetype.open:
                 continue
             try:
@@ -3267,7 +3300,7 @@ class NoneInfoExtractTests(ReadTest):
         got_paths = set(
             p.relative_to(directory)
             for p in pathlib.Path(directory).glob('**/*'))
-        if self.extraction_filter == 'data':
+        if self.extraction_filter in (None, 'data'):
             # The 'data' filter is expected to reject special files
             for path in 'ustar/fifotype', 'ustar/blktype', 'ustar/chrtype':
                 got_paths.discard(pathlib.Path(path))
@@ -4361,24 +4394,15 @@ class TestExtractionFilters(unittest.TestCase):
                            errorlevel=1)
             self.assertEqual(tar.getnames(), ['\ud800'])
             with self.assertRaises(UnicodeEncodeError):
-                tar.extractall(filter=tarfile.tar_filter)
+                tar.extractall()
             self.assertEqual(os.listdir(), [])
 
             tar = arc.open(encoding='utf-8', errors='surrogatepass',
                            errorlevel=0, debug=1)
             with support.captured_stderr() as stderr:
-                tar.extractall(filter=tarfile.tar_filter)
+                tar.extractall()
             self.assertEqual(os.listdir(), [])
             self.assertIn('tarfile: UnicodeEncodeError ', stderr.getvalue())
-
-    def test_default_filter_warns(self):
-        """Ensure the default filter warns"""
-        with ArchiveMaker() as arc:
-            arc.add('foo')
-        with warnings_helper.check_warnings(
-                ('Python 3.14', DeprecationWarning)):
-            with self.check_context(arc.open(), None):
-                self.expect_file('foo')
 
     def test_change_default_filter_on_instance(self):
         tar = tarfile.TarFile(tarname, 'r')
@@ -4588,7 +4612,7 @@ def setUpModule():
         data = fobj.read()
 
     # Create compressed tarfiles.
-    for c in GzipTest, Bz2Test, LzmaTest:
+    for c in GzipTest, Bz2Test, LzmaTest, ZstdTest:
         if c.open:
             os_helper.unlink(c.tarname)
             testtarnames.append(c.tarname)

@@ -11,8 +11,6 @@
 #include "pycore_call.h"          // _PyObject_CallNoArgs()
 #include "pycore_runtime.h"       // _Py_ID()
 
-#include <stdbool.h>
-
 #ifdef MS_WIN32
 #  include <malloc.h>
 #endif
@@ -211,9 +209,9 @@ static void _CallPythonObject(ctypes_state *st,
 
     result = PyObject_Vectorcall(callable, args, nargs, NULL);
     if (result == NULL) {
-        PyErr_FormatUnraisable(
-                "Exception ignored on calling ctypes callback function %R",
-                callable);
+        PyErr_FormatUnraisable("Exception ignored while "
+                               "calling ctypes callback function %R",
+                               callable);
     }
 
 #ifdef MS_WIN32
@@ -250,12 +248,12 @@ static void _CallPythonObject(ctypes_state *st,
            be the result.  EXCEPT when restype is py_object - Python
            itself knows how to manage the refcount of these objects.
         */
-        PyObject *keep = setfunc(mem, result, 0);
+        PyObject *keep = setfunc(mem, result, restype->size);
 
         if (keep == NULL) {
             /* Could not convert callback result. */
             PyErr_FormatUnraisable(
-                    "Exception ignored on converting result "
+                    "Exception ignored while converting result "
                     "of ctypes callback function %R",
                     callable);
         }
@@ -268,7 +266,7 @@ static void _CallPythonObject(ctypes_state *st,
                                   "memory leak in callback function.",
                                   1) == -1) {
                 PyErr_FormatUnraisable(
-                        "Exception ignored on converting result "
+                        "Exception ignored while converting result "
                         "of ctypes callback function %R",
                         callable);
             }
@@ -481,39 +479,31 @@ long Call_GetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
 {
     PyObject *func, *result;
     long retval;
-    static PyObject *context;
 
-    if (context == NULL)
-        context = PyUnicode_InternFromString("_ctypes.DllGetClassObject");
-
-    func = _PyImport_GetModuleAttrString("ctypes", "DllGetClassObject");
+    func = PyImport_ImportModuleAttrString("ctypes", "DllGetClassObject");
     if (!func) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
         /* There has been a warning before about this already */
-        return E_FAIL;
+        goto error;
     }
 
     {
         PyObject *py_rclsid = PyLong_FromVoidPtr((void *)rclsid);
         if (py_rclsid == NULL) {
             Py_DECREF(func);
-            PyErr_WriteUnraisable(context ? context : Py_None);
-            return E_FAIL;
+            goto error;
         }
         PyObject *py_riid = PyLong_FromVoidPtr((void *)riid);
         if (py_riid == NULL) {
             Py_DECREF(func);
             Py_DECREF(py_rclsid);
-            PyErr_WriteUnraisable(context ? context : Py_None);
-            return E_FAIL;
+            goto error;
         }
         PyObject *py_ppv = PyLong_FromVoidPtr(ppv);
         if (py_ppv == NULL) {
             Py_DECREF(py_rclsid);
             Py_DECREF(py_riid);
             Py_DECREF(func);
-            PyErr_WriteUnraisable(context ? context : Py_None);
-            return E_FAIL;
+            goto error;
         }
         result = PyObject_CallFunctionObjArgs(func,
                                               py_rclsid,
@@ -526,17 +516,21 @@ long Call_GetClassObject(REFCLSID rclsid, REFIID riid, LPVOID *ppv)
     }
     Py_DECREF(func);
     if (!result) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
-        return E_FAIL;
+        goto error;
     }
 
     retval = PyLong_AsLong(result);
     if (PyErr_Occurred()) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
-        retval = E_FAIL;
+        Py_DECREF(result);
+        goto error;
     }
     Py_DECREF(result);
     return retval;
+
+error:
+    PyErr_FormatUnraisable("Exception ignored while calling "
+                           "ctypes.DllGetClassObject");
+    return E_FAIL;
 }
 
 STDAPI DllGetClassObject(REFCLSID rclsid,
@@ -555,43 +549,30 @@ STDAPI DllGetClassObject(REFCLSID rclsid,
 
 long Call_CanUnloadNow(void)
 {
-    PyObject *mod, *func, *result;
-    long retval;
-    static PyObject *context;
-
-    if (context == NULL)
-        context = PyUnicode_InternFromString("_ctypes.DllCanUnloadNow");
-
-    mod = PyImport_ImportModule("ctypes");
-    if (!mod) {
-/*              OutputDebugString("Could not import ctypes"); */
-        /* We assume that this error can only occur when shutting
-           down, so we silently ignore it */
-        PyErr_Clear();
-        return E_FAIL;
-    }
-    /* Other errors cannot be raised, but are printed to stderr */
-    func = PyObject_GetAttrString(mod, "DllCanUnloadNow");
-    Py_DECREF(mod);
+    PyObject *func = PyImport_ImportModuleAttrString("ctypes",
+                                                     "DllCanUnloadNow");
     if (!func) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
-        return E_FAIL;
+        goto error;
     }
 
-    result = _PyObject_CallNoArgs(func);
+    PyObject *result = _PyObject_CallNoArgs(func);
     Py_DECREF(func);
     if (!result) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
-        return E_FAIL;
+        goto error;
     }
 
-    retval = PyLong_AsLong(result);
+    long retval = PyLong_AsLong(result);
     if (PyErr_Occurred()) {
-        PyErr_WriteUnraisable(context ? context : Py_None);
-        retval = E_FAIL;
+        Py_DECREF(result);
+        goto error;
     }
     Py_DECREF(result);
     return retval;
+
+error:
+    PyErr_FormatUnraisable("Exception ignored while calling "
+                           "ctypes.DllCanUnloadNow");
+    return E_FAIL;
 }
 
 /*

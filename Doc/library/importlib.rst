@@ -206,6 +206,10 @@ Functions
        :exc:`ModuleNotFoundError` is raised when the module being reloaded lacks
        a :class:`~importlib.machinery.ModuleSpec`.
 
+   .. warning::
+      This function is not thread-safe. Calling it from multiple threads can result
+      in unexpected behavior. It's recommended to use the :class:`threading.Lock`
+      or other synchronization primitives for thread-safe module reloading.
 
 :mod:`importlib.abc` -- Abstract base classes related to import
 ---------------------------------------------------------------
@@ -1271,7 +1275,7 @@ find and load modules.
 
    When a module is loaded with this loader, the ``__file__`` for the module
    will report as the location of the ``.fwork`` file. This allows code to use
-   the ``__file__`` of a  module as an anchor for file system traveral.
+   the ``__file__`` of a  module as an anchor for file system traversal.
    However, the spec origin will reference the location of the *actual* binary
    in the ``.framework`` folder.
 

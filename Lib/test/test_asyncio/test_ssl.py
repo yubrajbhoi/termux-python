@@ -30,7 +30,7 @@ BUF_MULTIPLIER = 1024 if not MACOS else 64
 
 
 def tearDownModule():
-    asyncio.set_event_loop_policy(None)
+    asyncio.events._set_event_loop_policy(None)
 
 
 class MyBaseProto(asyncio.Protocol):
@@ -1851,15 +1851,13 @@ class TestThreadedServer(SocketThread):
                     pass
         finally:
             super().stop()
-
-    def run(self):
-        try:
-            with self._sock:
-                self._sock.setblocking(False)
-                self._run()
-        finally:
+            self._sock.close()
             self._s1.close()
             self._s2.close()
+
+    def run(self):
+        self._sock.setblocking(False)
+        self._run()
 
     def _run(self):
         while self._active:

@@ -6,10 +6,10 @@ import subprocess
 import sys
 import unittest
 import warnings
-from ntpath import ALLOW_MISSING
 from test import support
 from test.support import cpython_only, os_helper
-from test.support import TestFailed, is_emscripten
+from test.support import TestFailed
+from ntpath import ALLOW_MISSING
 from test.support.os_helper import FakePath
 from test import test_genericpath
 from tempfile import TemporaryFile
@@ -1229,7 +1229,6 @@ class TestNtpath(NtpathTestCase):
         self.assertRaises(TypeError, ntpath.commonpath, ['C:\\Foo', b'Foo\\Baz'])
         self.assertRaises(TypeError, ntpath.commonpath, ['Foo', b'C:\\Foo\\Baz'])
 
-    @unittest.skipIf(is_emscripten, "Emscripten cannot fstat unnamed files.")
     def test_sameopenfile(self):
         with TemporaryFile() as tf1, TemporaryFile() as tf2:
             # Make sure the same file is really the same

@@ -1,15 +1,18 @@
 #include "Python.h"
-#include "pycore_initconfig.h"    // _PyStatus_ERR
-#include "pycore_pyerrors.h"      // _Py_DumpExtensionModules
+#include "pycore_ceval.h"         // _PyEval_IsGILEnabled()
+#include "pycore_initconfig.h"    // _PyStatus_ERR()
+#include "pycore_pyerrors.h"      // _Py_DumpExtensionModules()
+#include "pycore_fileutils.h"     // _PyFile_Flush
 #include "pycore_pystate.h"       // _PyThreadState_GET()
+#include "pycore_runtime.h"       // _Py_ID()
 #include "pycore_signal.h"        // Py_NSIG
 #include "pycore_sysmodule.h"     // _PySys_GetRequiredAttr()
 #include "pycore_time.h"          // _PyTime_FromSecondsObject()
 #include "pycore_traceback.h"     // _Py_DumpTracebackThreads
-
 #ifdef HAVE_UNISTD_H
 #  include <unistd.h>             // _exit()
 #endif
+
 #include <signal.h>               // sigaction()
 #include <stdlib.h>               // abort()
 #if defined(HAVE_PTHREAD_SIGMASK) && !defined(HAVE_BROKEN_PTHREAD_SIGMASK) && defined(HAVE_PTHREAD_H)
@@ -28,27 +31,13 @@
 #endif
 
 
+/* Sentinel to ignore all_threads on free-threading */
+#define FT_IGNORE_ALL_THREADS 2
+
 /* Allocate at maximum 100 MiB of the stack to raise the stack overflow */
 #define STACK_OVERFLOW_MAX_SIZE (100 * 1024 * 1024)
 
 #define PUTS(fd, str) (void)_Py_write_noraise(fd, str, strlen(str))
-
-
-// Clang and GCC 9.0+ use __attribute__((no_sanitize("undefined")))
-#if defined(__has_feature)
-#  if __has_feature(undefined_behavior_sanitizer)
-#    define _Py_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize("undefined")))
-#  endif
-#endif
-
-// GCC 4.9+ uses __attribute__((no_sanitize_undefined))
-#if !defined(_Py_NO_SANITIZE_UNDEFINED) && defined(__GNUC__) \
-    && ((__GNUC__ >= 5) || (__GNUC__ == 4) && (__GNUC_MINOR__ >= 9))
-#  define _Py_NO_SANITIZE_UNDEFINED __attribute__((no_sanitize_undefined))
-#endif
-#ifndef _Py_NO_SANITIZE_UNDEFINED
-#  define _Py_NO_SANITIZE_UNDEFINED
-#endif
 
 
 typedef struct {
@@ -207,12 +196,34 @@ faulthandler_dump_traceback(int fd, int all_threads,
        PyGILState_GetThisThreadState(). */
     PyThreadState *tstate = PyGILState_GetThisThreadState();
 
-    if (all_threads) {
+    if (all_threads == 1) {
         (void)_Py_DumpTracebackThreads(fd, NULL, tstate);
     }
     else {
+        if (all_threads == FT_IGNORE_ALL_THREADS) {
+            PUTS(fd, "<Cannot show all threads while the GIL is disabled>\n");
+        }
         if (tstate != NULL)
             _Py_DumpTraceback(fd, tstate);
+    }
+
+    reentrant = 0;
+}
+
+static void
+faulthandler_dump_c_stack(int fd)
+{
+    static volatile int reentrant = 0;
+
+    if (reentrant) {
+        return;
+    }
+
+    reentrant = 1;
+
+    if (fatal_error.c_stack) {
+        PUTS(fd, "\n");
+        _Py_DumpStack(fd);
     }
 
     reentrant = 0;
@@ -268,6 +279,34 @@ faulthandler_dump_traceback_py(PyObject *self,
     Py_RETURN_NONE;
 }
 
+static PyObject *
+faulthandler_dump_c_stack_py(PyObject *self,
+                             PyObject *args, PyObject *kwargs)
+{
+    static char *kwlist[] = {"file", NULL};
+    PyObject *file = NULL;
+
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs,
+        "|O:dump_c_stack", kwlist,
+        &file)) {
+        return NULL;
+    }
+
+    int fd = faulthandler_get_fileno(&file);
+    if (fd < 0) {
+        return NULL;
+    }
+
+    _Py_DumpStack(fd);
+    Py_XDECREF(file);
+
+    if (PyErr_CheckSignals()) {
+        return NULL;
+    }
+
+    Py_RETURN_NONE;
+}
+
 static void
 faulthandler_disable_fatal_handler(fault_handler_t *handler)
 {
@@ -281,6 +320,27 @@ faulthandler_disable_fatal_handler(fault_handler_t *handler)
 #endif
 }
 
+static int
+deduce_all_threads(void)
+{
+#ifndef Py_GIL_DISABLED
+    return fatal_error.all_threads;
+#else
+    if (fatal_error.all_threads == 0) {
+        return 0;
+    }
+    // We can't use _PyThreadState_GET, so use the stored GILstate one
+    PyThreadState *tstate = PyGILState_GetThisThreadState();
+    if (tstate == NULL) {
+        return 0;
+    }
+
+    /* In theory, it's safe to dump all threads if the GIL is enabled */
+    return _PyEval_IsGILEnabled(tstate)
+        ? fatal_error.all_threads
+        : FT_IGNORE_ALL_THREADS;
+#endif
+}
 
 /* Handler for SIGSEGV, SIGFPE, SIGABRT, SIGBUS and SIGILL signals.
 
@@ -335,8 +395,9 @@ faulthandler_fatal_error(int signum)
         PUTS(fd, "\n\n");
     }
 
-    faulthandler_dump_traceback(fd, fatal_error.all_threads,
+    faulthandler_dump_traceback(fd, deduce_all_threads(),
                                 fatal_error.interp);
+    faulthandler_dump_c_stack(fd);
 
     _Py_DumpExtensionModules(fd, fatal_error.interp);
 
@@ -376,7 +437,6 @@ faulthandler_exc_handler(struct _EXCEPTION_POINTERS *exc_info)
 {
     const int fd = fatal_error.fd;
     DWORD code = exc_info->ExceptionRecord->ExceptionCode;
-    DWORD flags = exc_info->ExceptionRecord->ExceptionFlags;
 
     if (faulthandler_ignore_exception(code)) {
         /* ignore the exception: call the next exception handler */
@@ -411,8 +471,9 @@ faulthandler_exc_handler(struct _EXCEPTION_POINTERS *exc_info)
         }
     }
 
-    faulthandler_dump_traceback(fd, fatal_error.all_threads,
+    faulthandler_dump_traceback(fd, deduce_all_threads(),
                                 fatal_error.interp);
+    faulthandler_dump_c_stack(fd);
 
     /* call the next exception handler */
     return EXCEPTION_CONTINUE_SEARCH;
@@ -507,14 +568,15 @@ faulthandler_enable(void)
 static PyObject*
 faulthandler_py_enable(PyObject *self, PyObject *args, PyObject *kwargs)
 {
-    static char *kwlist[] = {"file", "all_threads", NULL};
+    static char *kwlist[] = {"file", "all_threads", "c_stack", NULL};
     PyObject *file = NULL;
     int all_threads = 1;
     int fd;
+    int c_stack = 1;
     PyThreadState *tstate;
 
     if (!PyArg_ParseTupleAndKeywords(args, kwargs,
-        "|Op:enable", kwlist, &file, &all_threads))
+        "|Opp:enable", kwlist, &file, &all_threads, &c_stack))
         return NULL;
 
     fd = faulthandler_get_fileno(&file);
@@ -531,6 +593,7 @@ faulthandler_py_enable(PyObject *self, PyObject *args, PyObject *kwargs)
     fatal_error.fd = fd;
     fatal_error.all_threads = all_threads;
     fatal_error.interp = PyThreadState_GetInterpreter(tstate);
+    fatal_error.c_stack = c_stack;
 
     if (faulthandler_enable() < 0) {
         return NULL;
@@ -1096,7 +1159,7 @@ faulthandler_fatal_error_c_thread(PyObject *self, PyObject *args)
 }
 
 static PyObject* _Py_NO_SANITIZE_UNDEFINED
-faulthandler_sigfpe(PyObject *self, PyObject *args)
+faulthandler_sigfpe(PyObject *self, PyObject *Py_UNUSED(dummy))
 {
     faulthandler_suppress_crash_report();
 
@@ -1226,6 +1289,10 @@ static PyMethodDef module_methods[] = {
      PyDoc_STR("dump_traceback($module, /, file=sys.stderr, all_threads=True)\n--\n\n"
                "Dump the traceback of the current thread, or of all threads "
                "if all_threads is True, into file.")},
+     {"dump_c_stack",
+      _PyCFunction_CAST(faulthandler_dump_c_stack_py), METH_VARARGS|METH_KEYWORDS,
+      PyDoc_STR("dump_c_stack($module, /, file=sys.stderr)\n--\n\n"
+              "Dump the C stack of the current thread.")},
     {"dump_traceback_later",
      _PyCFunction_CAST(faulthandler_dump_traceback_later), METH_VARARGS|METH_KEYWORDS,
      PyDoc_STR("dump_traceback_later($module, /, timeout, repeat=False, file=sys.stderr, exit=False)\n--\n\n"
@@ -1262,7 +1329,7 @@ static PyMethodDef module_methods[] = {
     {"_sigabrt", faulthandler_sigabrt, METH_NOARGS,
      PyDoc_STR("_sigabrt($module, /)\n--\n\n"
                "Raise a SIGABRT signal.")},
-    {"_sigfpe", (PyCFunction)faulthandler_sigfpe, METH_NOARGS,
+    {"_sigfpe", faulthandler_sigfpe, METH_NOARGS,
      PyDoc_STR("_sigfpe($module, /)\n--\n\n"
                "Raise a SIGFPE signal.")},
 #ifdef FAULTHANDLER_STACK_OVERFLOW
@@ -1335,7 +1402,7 @@ PyInit_faulthandler(void)
 static int
 faulthandler_init_enable(void)
 {
-    PyObject *enable = _PyImport_GetModuleAttrString("faulthandler", "enable");
+    PyObject *enable = PyImport_ImportModuleAttrString("faulthandler", "enable");
     if (enable == NULL) {
         return -1;
     }

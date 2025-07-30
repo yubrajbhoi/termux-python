@@ -1,6 +1,7 @@
 """Tests for the Tools/i18n/msgfmt.py tool."""
 
 import json
+import struct
 import sys
 import unittest
 from gettext import GNUTranslations
@@ -43,6 +44,31 @@ class CompilationTest(unittest.TestCase):
 
                     self.assertDictEqual(actual._catalog, expected._catalog)
 
+    def test_binary_header(self):
+        with temp_cwd():
+            tmp_mo_file = 'messages.mo'
+            compile_messages(data_dir / "general.po", tmp_mo_file)
+            with open(tmp_mo_file, 'rb') as f:
+                mo_data = f.read()
+
+        (
+            magic,
+            version,
+            num_strings,
+            orig_table_offset,
+            trans_table_offset,
+            hash_table_size,
+            hash_table_offset,
+        ) = struct.unpack("=7I", mo_data[:28])
+
+        self.assertEqual(magic, 0x950412de)
+        self.assertEqual(version, 0)
+        self.assertEqual(num_strings, 9)
+        self.assertEqual(orig_table_offset, 28)
+        self.assertEqual(trans_table_offset, 100)
+        self.assertEqual(hash_table_size, 0)
+        self.assertEqual(hash_table_offset, 0)
+
     def test_translations(self):
         with open(data_dir / 'general.mo', 'rb') as f:
             t = GNUTranslations(f)
@@ -64,6 +90,14 @@ class CompilationTest(unittest.TestCase):
         self.assertEqual(t.npgettext('abc', 'One email sent.',
                                      '%d emails sent.', 2),
                          '%d emails sent.')
+
+    def test_po_with_bom(self):
+        with temp_cwd():
+            Path('bom.po').write_bytes(b'\xef\xbb\xbfmsgid "Python"\nmsgstr "Pioton"\n')
+
+            res = assert_python_failure(msgfmt_py, 'bom.po')
+            err = res.err.decode('utf-8')
+            self.assertIn('The file bom.po starts with a UTF-8 BOM', err)
 
     def test_invalid_msgid_plural(self):
         with temp_cwd():

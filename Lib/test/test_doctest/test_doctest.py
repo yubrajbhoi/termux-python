@@ -4,7 +4,6 @@ Test script for doctest.
 
 from test import support
 from test.support import import_helper
-from test.support.pty_helper import FakeInput  # used in doctests
 import doctest
 import functools
 import os
@@ -16,7 +15,6 @@ import unittest
 import tempfile
 import types
 import contextlib
-import _colorize
 
 
 def doctest_skip_if(condition):
@@ -471,7 +469,7 @@ We'll simulate a __file__ attr that ends in pyc:
     >>> tests = finder.find(sample_func)
 
     >>> print(tests)  # doctest: +ELLIPSIS
-    [<DocTest sample_func from test_doctest.py:38 (1 example)>]
+    [<DocTest sample_func from test_doctest.py:36 (1 example)>]
 
 The exact name depends on how test_doctest was invoked, so allow for
 leading path components.
@@ -740,7 +738,7 @@ plain ol' Python and is guaranteed to be available.
 
     >>> import builtins
     >>> tests = doctest.DocTestFinder().find(builtins)
-    >>> 830 < len(tests) < 860 # approximate number of objects with docstrings
+    >>> 750 < len(tests) < 800 # approximate number of objects with docstrings
     True
     >>> real_tests = [t for t in tests if len(t.examples) > 0]
     >>> len(real_tests) # objects that actually have doctests
@@ -893,6 +891,7 @@ Unit tests for the `DocTestRunner` class.
 DocTestRunner is used to run DocTest test cases, and to accumulate
 statistics.  Here's a simple DocTest case we can use:
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -1027,6 +1026,7 @@ An expected exception is specified with a traceback message.  The
 lines between the first line and the type/value may be omitted or
 replaced with any other string:
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -1035,7 +1035,7 @@ replaced with any other string:
     ...     >>> x = 12
     ...     >>> print(x//0)
     ...     Traceback (most recent call last):
-    ...     ZeroDivisionError: integer division or modulo by zero
+    ...     ZeroDivisionError: division by zero
     ...     '''
     >>> test = doctest.DocTestFinder().find(f)[0]
     >>> doctest.DocTestRunner(verbose=False).run(test)
@@ -1052,7 +1052,7 @@ unexpected exception:
     ...     >>> print('pre-exception output', x//0)
     ...     pre-exception output
     ...     Traceback (most recent call last):
-    ...     ZeroDivisionError: integer division or modulo by zero
+    ...     ZeroDivisionError: division by zero
     ...     '''
     >>> test = doctest.DocTestFinder().find(f)[0]
     >>> doctest.DocTestRunner(verbose=False).run(test)
@@ -1063,7 +1063,7 @@ unexpected exception:
         print('pre-exception output', x//0)
     Exception raised:
         ...
-        ZeroDivisionError: integer division or modulo by zero
+        ZeroDivisionError: division by zero
     TestResults(failed=1, attempted=2)
 
 Exception messages may contain newlines:
@@ -1258,7 +1258,7 @@ unexpected exception:
     Exception raised:
         Traceback (most recent call last):
         ...
-        ZeroDivisionError: integer division or modulo by zero
+        ZeroDivisionError: division by zero
     TestResults(failed=1, attempted=1)
 
     >>> _colorize.COLORIZE = save_colorize
@@ -1303,6 +1303,7 @@ together).
 The DONT_ACCEPT_TRUE_FOR_1 flag disables matches between True/False
 and 1/0:
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -1736,6 +1737,7 @@ Option directives can be used to turn option flags on or off for a
 single example.  To turn an option on for an example, follow that
 example with a comment of the form ``# doctest: +OPTION``:
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -2002,6 +2004,7 @@ Create a docstring that we want to debug:
 
 Create some fake stdin input, to feed to the debugger:
 
+    >>> from test.support.pty_helper import FakeInput
     >>> real_stdin = sys.stdin
     >>> sys.stdin = FakeInput(['next', 'print(x)', 'continue'])
 
@@ -2031,6 +2034,7 @@ if not hasattr(sys, 'gettrace') or not sys.gettrace():
         with a version that restores stdout.  This is necessary for you to
         see debugger output.
 
+          >>> import _colorize
           >>> save_colorize = _colorize.COLORIZE
           >>> _colorize.COLORIZE = False
 
@@ -2048,6 +2052,7 @@ if not hasattr(sys, 'gettrace') or not sys.gettrace():
         To demonstrate this, we'll create a fake standard input that
         captures our debugger input:
 
+          >>> from test.support.pty_helper import FakeInput
           >>> real_stdin = sys.stdin
           >>> sys.stdin = FakeInput([
           ...    'print(x)',  # print data defined by the example
@@ -2086,7 +2091,7 @@ if not hasattr(sys, 'gettrace') or not sys.gettrace():
           ...     runner.run(test)
           ... finally:
           ...     sys.stdin = real_stdin
-          > <doctest test.test_doctest.test_doctest.test_pdb_set_trace[9]>(3)calls_set_trace()
+          > <doctest test.test_doctest.test_doctest.test_pdb_set_trace[11]>(3)calls_set_trace()
           -> import pdb; pdb.set_trace()
           (Pdb) print(y)
           2
@@ -2188,6 +2193,7 @@ if not hasattr(sys, 'gettrace') or not sys.gettrace():
         >>> parser = doctest.DocTestParser()
         >>> runner = doctest.DocTestRunner(verbose=False)
         >>> test = parser.get_doctest(doc, globals(), "foo-bar@baz", "foo-bar@baz.py", 0)
+        >>> from test.support.pty_helper import FakeInput
         >>> real_stdin = sys.stdin
         >>> sys.stdin = FakeInput([
         ...    'step',
@@ -2405,9 +2411,6 @@ def test_DocTestSuite_errors():
          >>> result
          <unittest.result.TestResult run=4 errors=0 failures=4>
          >>> print(result.failures[0][1]) # doctest: +ELLIPSIS
-         Traceback (most recent call last):
-           File ...
-             raise self.failureException(self.format_failure(new.getvalue()))
          AssertionError: Failed doctest test for test.test_doctest.sample_doctest_errors
            File "...sample_doctest_errors.py", line 0, in sample_doctest_errors
          <BLANKLINE>
@@ -2425,21 +2428,12 @@ def test_DocTestSuite_errors():
              1/0
          Exception raised:
              Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors[1]>", line 1, in <module>
                  1/0
                  ~^~
              ZeroDivisionError: division by zero
          <BLANKLINE>
-         <BLANKLINE>
          >>> print(result.failures[1][1]) # doctest: +ELLIPSIS
-         Traceback (most recent call last):
-           File ...
-             raise self.failureException(self.format_failure(new.getvalue()))
          AssertionError: Failed doctest test for test.test_doctest.sample_doctest_errors.__test__.bad
            File "...sample_doctest_errors.py", line unknown line number, in bad
          <BLANKLINE>
@@ -2457,21 +2451,12 @@ def test_DocTestSuite_errors():
              1/0
          Exception raised:
              Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors.__test__.bad[1]>", line 1, in <module>
                  1/0
                  ~^~
              ZeroDivisionError: division by zero
          <BLANKLINE>
-         <BLANKLINE>
          >>> print(result.failures[2][1]) # doctest: +ELLIPSIS
-         Traceback (most recent call last):
-           File ...
-             raise self.failureException(self.format_failure(new.getvalue()))
          AssertionError: Failed doctest test for test.test_doctest.sample_doctest_errors.errors
            File "...sample_doctest_errors.py", line 14, in errors
          <BLANKLINE>
@@ -2489,11 +2474,6 @@ def test_DocTestSuite_errors():
              1/0
          Exception raised:
              Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors.errors[1]>", line 1, in <module>
                  1/0
                  ~^~
@@ -2504,11 +2484,6 @@ def test_DocTestSuite_errors():
              f()
          Exception raised:
              Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors.errors[3]>", line 1, in <module>
                  f()
                  ~^^
@@ -2522,11 +2497,6 @@ def test_DocTestSuite_errors():
              g()
          Exception raised:
              Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                 ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors.errors[4]>", line 1, in <module>
                  g()
                  ~^^
@@ -2535,11 +2505,7 @@ def test_DocTestSuite_errors():
                  ~~^^^
              IndexError: list index out of range
          <BLANKLINE>
-         <BLANKLINE>
          >>> print(result.failures[3][1]) # doctest: +ELLIPSIS
-         Traceback (most recent call last):
-           File ...
-             raise self.failureException(self.format_failure(new.getvalue()))
          AssertionError: Failed doctest test for test.test_doctest.sample_doctest_errors.syntax_error
            File "...sample_doctest_errors.py", line 29, in syntax_error
          <BLANKLINE>
@@ -2548,17 +2514,10 @@ def test_DocTestSuite_errors():
          Failed example:
              2+*3
          Exception raised:
-             Traceback (most recent call last):
-               File ...
-                 exec(compile(example.source, filename, "single",
-                      ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                              compileflags, True), test.globs)
-                              ^^^^^^^^^^^^^^^^^^^
                File "<doctest test.test_doctest.sample_doctest_errors.syntax_error[0]>", line 1
                  2+*3
                    ^
              SyntaxError: invalid syntax
-         <BLANKLINE>
          <BLANKLINE>
     """
 
@@ -2585,25 +2544,6 @@ def test_DocFileSuite():
          ...                              'test_doctest4.txt',
          ...                              package='test.test_doctest')
          >>> suite.run(unittest.TestResult())
-         <unittest.result.TestResult run=3 errors=0 failures=2>
-
-       Support for using a package's __loader__.get_data() is also
-       provided.
-
-         >>> import unittest, pkgutil, test
-         >>> added_loader = False
-         >>> if not hasattr(test, '__loader__'):
-         ...     test.__loader__ = pkgutil.get_loader(test)
-         ...     added_loader = True
-         >>> try:
-         ...     suite = doctest.DocFileSuite('test_doctest.txt',
-         ...                                  'test_doctest2.txt',
-         ...                                  'test_doctest4.txt',
-         ...                                  package='test.test_doctest')
-         ...     suite.run(unittest.TestResult())
-         ... finally:
-         ...     if added_loader:
-         ...         del test.__loader__
          <unittest.result.TestResult run=3 errors=0 failures=2>
 
        '/' should be used as a path separator.  It will be converted
@@ -2753,9 +2693,6 @@ def test_DocFileSuite_errors():
         >>> result
         <unittest.result.TestResult run=1 errors=0 failures=1>
         >>> print(result.failures[0][1]) # doctest: +ELLIPSIS
-        Traceback (most recent call last):
-          File ...
-            raise self.failureException(self.format_failure(new.getvalue()))
         AssertionError: Failed doctest test for test_doctest_errors.txt
           File "...test_doctest_errors.txt", line 0
         <BLANKLINE>
@@ -2773,11 +2710,6 @@ def test_DocFileSuite_errors():
             1/0
         Exception raised:
             Traceback (most recent call last):
-              File ...
-                exec(compile(example.source, filename, "single",
-                ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                             compileflags, True), test.globs)
-                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
               File "<doctest test_doctest_errors.txt[1]>", line 1, in <module>
                 1/0
                 ~^~
@@ -2788,11 +2720,6 @@ def test_DocFileSuite_errors():
             f()
         Exception raised:
             Traceback (most recent call last):
-              File ...
-                exec(compile(example.source, filename, "single",
-                ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                             compileflags, True), test.globs)
-                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
               File "<doctest test_doctest_errors.txt[3]>", line 1, in <module>
                 f()
                 ~^^
@@ -2805,17 +2732,10 @@ def test_DocFileSuite_errors():
         Failed example:
             2+*3
         Exception raised:
-            Traceback (most recent call last):
-              File ...
-                exec(compile(example.source, filename, "single",
-                     ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                             compileflags, True), test.globs)
-                             ^^^^^^^^^^^^^^^^^^^
               File "<doctest test_doctest_errors.txt[4]>", line 1
                 2+*3
                   ^
             SyntaxError: invalid syntax
-        <BLANKLINE>
         <BLANKLINE>
     """
 
@@ -2889,7 +2809,8 @@ def test_unittest_reportflags():
       >>> result
       <unittest.result.TestResult run=1 errors=0 failures=1>
       >>> print(result.failures[0][1]) # doctest: +ELLIPSIS
-      Traceback ...
+      AssertionError: Failed doctest test for test_doctest.txt
+      ...
       Failed example:
           favorite_color
       ...
@@ -2908,13 +2829,13 @@ def test_unittest_reportflags():
       >>> result
       <unittest.result.TestResult run=1 errors=0 failures=1>
       >>> print(result.failures[0][1]) # doctest: +ELLIPSIS
-      Traceback ...
+      AssertionError: Failed doctest test for test_doctest.txt
+      ...
       Failed example:
           favorite_color
       Exception raised:
           ...
           NameError: name 'favorite_color' is not defined
-      <BLANKLINE>
       <BLANKLINE>
 
     We get only the first failure.
@@ -2935,7 +2856,8 @@ def test_unittest_reportflags():
     the trailing whitespace using `\x20` in the diff below.
 
       >>> print(result.failures[0][1]) # doctest: +ELLIPSIS
-      Traceback ...
+      AssertionError: Failed doctest test for test_doctest.txt
+      ...
       Failed example:
           favorite_color
       ...
@@ -2949,7 +2871,6 @@ def test_unittest_reportflags():
           - <BLANKLINE>
           +\x20
             b
-      <BLANKLINE>
       <BLANKLINE>
 
 
@@ -2967,6 +2888,7 @@ calling module.  The return value is (#failures, #tests).
 
 We don't want color or `-v` in sys.argv for these tests.
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -3157,11 +3079,6 @@ Tests for error reporting in the testfile() function.
         1/0
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test_doctest_errors.txt[1]>", line 1, in <module>
             1/0
             ~^~
@@ -3172,11 +3089,6 @@ Tests for error reporting in the testfile() function.
         f()
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test_doctest_errors.txt[3]>", line 1, in <module>
             f()
             ~^^
@@ -3189,12 +3101,6 @@ Tests for error reporting in the testfile() function.
     Failed example:
         2+*3
     Exception raised:
-        Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-                 ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^
           File "<doctest test_doctest_errors.txt[4]>", line 1
             2+*3
               ^
@@ -3355,11 +3261,6 @@ Tests for error reporting in the testmod() function.
         1/0
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors[1]>", line 1, in <module>
             1/0
             ~^~
@@ -3378,11 +3279,6 @@ Tests for error reporting in the testmod() function.
         1/0
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors.__test__.bad[1]>", line 1, in <module>
             1/0
             ~^~
@@ -3401,11 +3297,6 @@ Tests for error reporting in the testmod() function.
         1/0
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors.errors[1]>", line 1, in <module>
             1/0
             ~^~
@@ -3416,11 +3307,6 @@ Tests for error reporting in the testmod() function.
         f()
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors.errors[3]>", line 1, in <module>
             f()
             ~^^
@@ -3434,11 +3320,6 @@ Tests for error reporting in the testmod() function.
         g()
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors.errors[4]>", line 1, in <module>
             g()
             ~^^
@@ -3451,12 +3332,6 @@ Tests for error reporting in the testmod() function.
     Failed example:
         2+*3
     Exception raised:
-        Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-                 ~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^
           File "<doctest test.test_doctest.sample_doctest_errors.syntax_error[0]>", line 1
             2+*3
               ^
@@ -3482,6 +3357,7 @@ if supports_unicode:
     def test_unicode(): """
 Check doctest with a non-ascii filename:
 
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -3501,11 +3377,6 @@ Check doctest with a non-ascii filename:
         raise Exception('clé')
     Exception raised:
         Traceback (most recent call last):
-          File ...
-            exec(compile(example.source, filename, "single",
-            ~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-                         compileflags, True), test.globs)
-                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
           File "<doctest foo-bär@baz[0]>", line 1, in <module>
             raise Exception('clé')
         Exception: clé
@@ -3806,6 +3677,7 @@ def test_run_doctestsuite_multiple_times():
 
 def test_exception_with_note(note):
     """
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
@@ -3940,6 +3812,7 @@ def test_syntax_error_subclass_from_stdlib():
 
 def test_syntax_error_with_incorrect_expected_note():
     """
+    >>> import _colorize
     >>> save_colorize = _colorize.COLORIZE
     >>> _colorize.COLORIZE = False
 
