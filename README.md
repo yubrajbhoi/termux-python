@@ -33,6 +33,16 @@ All the files appended with `t` are the free-threaded version.
  - [python-3.13.5-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.5-aarch64.tar.zst)
  - [python-3.13.5t-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.5t-aarch64.tar.zst)
 
+### Python 3.14.0 Release Candidates
+
+The source code is in `edge` branch.
+
+ - [python-3.14.0rc1-aarch64.deb](https://public.8018985.xyz/python-3.14.0rc1-aarch64.deb)
+ - [python-3.14.0rc1t-aarch64.deb](https://public.8018985.xyz/python-3.14.0rc1t-aarch64.deb)
+
+ - [python-3.14.0rc1-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc1-aarch64.tar.zst)
+ - [python-3.14.0rc1t-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc1t-aarch64.tar.zst)
+
 ## How to install
 
 The easiest way to install is with the DEB files. Simply download a package and install like this:
