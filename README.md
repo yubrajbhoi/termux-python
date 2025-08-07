@@ -48,6 +48,12 @@ The source code is in `edge` branch.
 The easiest way to install is with the DEB files. Simply download a package and install like this:
 
 ```
+apt install ./*.deb
+```
+
+You can also install with `dpkg` if you know how to resolve dependency errors:
+
+```
 dpkg -i *.deb
 # To install missing deps
 apt -f install
