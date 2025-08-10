@@ -170,7 +170,7 @@ def _candidate_tempdir_list():
                          _os.path.expandvars(r'%SYSTEMROOT%\Temp'),
                          r'c:\temp', r'c:\tmp', r'\temp', r'\tmp' ])
     else:
-        dirlist.extend([ '/data/data/com.termux/files/usr/tmp' ])
+        dirlist.extend([ '/tmp', '/var/tmp', '/usr/tmp' ])
 
     # As a last resort, the current directory.
     try:
@@ -180,7 +180,7 @@ def _candidate_tempdir_list():
 
     return dirlist
 
-def _get_default_tempdir():
+def _get_default_tempdir(dirlist=None):
     """Calculate the default directory to use for temporary files.
     This routine should be called exactly once.
 
@@ -190,7 +190,8 @@ def _get_default_tempdir():
     service, the name of the test file must be randomized."""
 
     namer = _RandomNameSequence()
-    dirlist = _candidate_tempdir_list()
+    if dirlist is None:
+        dirlist = _candidate_tempdir_list()
 
     for dir in dirlist:
         if dir != _os.curdir:

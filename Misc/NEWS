@@ -2,6 +2,288 @@
 Python News
 +++++++++++
 
+What's New in Python 3.13.6 final?
+==================================
+
+*Release date: 2025-08-06*
+
+macOS
+-----
+
+- gh-137450: macOS installer shell path management improvements: separate
+  the installer ``Shell profile updater`` postinstall script from the
+  ``Update Shell Profile.command`` to enable more robust error handling.
+
+- gh-137134: Update macOS installer to ship with SQLite version 3.50.4.
+
+Windows
+-------
+
+- gh-137134: Update Windows installer to ship with SQLite 3.50.4.
+
+Tools/Demos
+-----------
+
+- gh-135968: Stubs for ``strip`` are now provided as part of an iOS install.
+
+Tests
+-----
+
+- gh-135966: The iOS testbed now handles the ``app_packages`` folder as a
+  site directory.
+
+- gh-135494: Fix regrtest to support excluding tests from ``--pgo`` tests.
+  Patch by Victor Stinner.
+
+- gh-135489: Show verbose output for failing tests during PGO profiling step
+  with --enable-optimizations.
+
+Security
+--------
+
+- gh-135661: Fix parsing start and end tags in
+  :class:`html.parser.HTMLParser` according to the HTML5 standard.
+
+  * Whitespaces no longer accepted between ``</`` and the tag name.
+    E.g. ``</ script>`` does not end the script section.
+
+  * Vertical tabulation (``\v``) and non-ASCII whitespaces no longer recognized
+    as whitespaces. The only whitespaces are ``\t\n\r\f`` and space.
+
+  * Null character (U+0000) no longer ends the tag name.
+
+  * Attributes and slashes after the tag name in end tags are now ignored,
+    instead of terminating after the first ``>`` in quoted attribute value.
+    E.g. ``</script/foo=">"/>``.
+
+  * Multiple slashes and whitespaces between the last attribute and closing ``>``
+    are now ignored in both start and end tags. E.g. ``<a foo=bar/ //>``.
+
+  * Multiple ``=`` between attribute name and value are no longer collapsed.
+    E.g. ``<a foo==bar>`` produces attribute "foo" with value "=bar".
+
+- gh-102555: Fix comment parsing in :class:`html.parser.HTMLParser`
+  according to the HTML5 standard. ``--!>`` now ends the comment. ``-- >``
+  no longer ends the comment. Support abnormally ended empty comments
+  ``<-->`` and ``<--->``.
+
+- gh-135462: Fix quadratic complexity in processing specially crafted input
+  in :class:`html.parser.HTMLParser`. End-of-file errors are now handled
+  according to the HTML5 specs -- comments and declarations are
+  automatically closed, tags are ignored.
+
+- gh-118350: Fix support of escapable raw text mode (elements "textarea" and
+  "title") in :class:`html.parser.HTMLParser`.
+
+Library
+-------
+
+- gh-132710: If possible, ensure that :func:`uuid.getnode` returns the same
+  result even across different processes. Previously, the result was
+  constant only within the same process. Patch by Bénédikt Tran.
+
+- gh-137273: Fix debug assertion failure in :func:`locale.setlocale` on
+  Windows.
+
+- gh-137257: Bump the version of pip bundled in ensurepip to version 25.2
+
+- gh-81325: :class:`tarfile.TarFile` now accepts a :term:`path-like
+  <path-like object>` when working on a tar archive. (Contributed by
+  Alexander Enrique Urieles Nieto in :gh:`81325`.)
+
+- gh-130522: Fix unraisable :exc:`TypeError` raised during
+  :term:`interpreter shutdown` in the :mod:`threading` module.
+
+- gh-130577: :mod:`tarfile` now validates archives to ensure member offsets
+  are non-negative.  (Contributed by Alexander Enrique Urieles Nieto in
+  :gh:`130577`.)
+
+- gh-136549: Fix signature of :func:`threading.excepthook`.
+
+- gh-136523: Fix :class:`wave.Wave_write` emitting an unraisable when open
+  raises.
+
+- gh-52876: Add missing ``keepends`` (default ``True``) parameter to
+  :meth:`!codecs.StreamReaderWriter.readline` and
+  :meth:`!codecs.StreamReaderWriter.readlines`.
+
+- gh-85702: If ``zoneinfo._common.load_tzdata`` is given a package without a
+  resource a :exc:`zoneinfo.ZoneInfoNotFoundError` is raised rather than a
+  :exc:`PermissionError`. Patch by Victor Stinner.
+
+- gh-134759: Fix :exc:`UnboundLocalError` in
+  :func:`email.message.Message.get_payload` when the payload to decode is a
+  :class:`bytes` object. Patch by Kliment Lamonov.
+
+- gh-136028: Fix parsing month names containing "İ" (U+0130, LATIN CAPITAL
+  LETTER I WITH DOT ABOVE) in :func:`time.strptime`. This affects locales
+  az_AZ, ber_DZ, ber_MA and crh_UA.
+
+- gh-135995: In the palmos encoding, make byte ``0x9b`` decode to ``›``
+  (U+203A - SINGLE RIGHT-POINTING ANGLE QUOTATION MARK).
+
+- gh-53203: Fix :func:`time.strptime` for ``%c`` and ``%x`` formats on
+  locales byn_ER, wal_ET and lzh_TW, and for ``%X`` format on locales ar_SA,
+  bg_BG and lzh_TW.
+
+- gh-91555: An earlier change, which was introduced in 3.13.4, has been
+  reverted. It disabled logging for a logger during handling of log messages
+  for that logger. Since the reversion, the behaviour should be as it was
+  before 3.13.4.
+
+- gh-135878: Fixes a crash of :class:`types.SimpleNamespace` on :term:`free
+  threading` builds, when several threads were calling its
+  :meth:`~object.__repr__` method at the same time.
+
+- gh-135836: Fix :exc:`IndexError` in :meth:`asyncio.loop.create_connection`
+  that could occur when non-\ :exc:`OSError` exception is raised during
+  connection and socket's ``close()`` raises :exc:`!OSError`.
+
+- gh-135836: Fix :exc:`IndexError` in :meth:`asyncio.loop.create_connection`
+  that could occur when the Happy Eyeballs algorithm resulted in an empty
+  exceptions list during connection attempts.
+
+- gh-135855: Raise :exc:`TypeError` instead of :exc:`SystemError` when
+  :func:`!_interpreters.set___main___attrs` is passed a non-dict object.
+  Patch by Brian Schubert.
+
+- gh-135815: :mod:`netrc`: skip security checks if :func:`os.getuid` is
+  missing. Patch by Bénédikt Tran.
+
+- gh-135640: Address bug where it was possible to call
+  :func:`xml.etree.ElementTree.ElementTree.write` on an ElementTree object
+  with an invalid root element. This behavior blanked the file passed to
+  ``write`` if it already existed.
+
+- gh-135444: Fix :meth:`asyncio.DatagramTransport.sendto` to account for
+  datagram header size when data cannot be sent.
+
+- gh-135497: Fix :func:`os.getlogin` failing for longer usernames on
+  BSD-based platforms.
+
+- gh-135487: Fix :meth:`!reprlib.Repr.repr_int` when given integers with
+  more than :func:`sys.get_int_max_str_digits` digits. Patch by Bénédikt
+  Tran.
+
+- gh-135335: :mod:`multiprocessing`: Flush ``stdout`` and ``stderr`` after
+  preloading modules in the ``forkserver``.
+
+- gh-135244: :mod:`uuid`: when the MAC address cannot be determined, the
+  48-bit node ID is now generated with a cryptographically-secure
+  pseudo-random number generator (CSPRNG) as per :rfc:`RFC 9562, §6.10.3
+  <9562#section-6.10-3>`. This affects :func:`~uuid.uuid1`.
+
+- gh-135069: Fix the "Invalid error handling" exception in
+  :class:`!encodings.idna.IncrementalDecoder` to correctly replace the
+  'errors' parameter.
+
+- gh-134698: Fix a crash when calling methods of :class:`ssl.SSLContext` or
+  :class:`ssl.SSLSocket` across multiple threads.
+
+- gh-132124: On POSIX-compliant systems,
+  :func:`!multiprocessing.util.get_temp_dir` now ignores :envvar:`TMPDIR`
+  (and similar environment variables) if the path length of ``AF_UNIX``
+  socket files exceeds the platform-specific maximum length when using the
+  *forkserver* start method. Patch by Bénédikt Tran.
+
+- gh-133439: Fix dot commands with trailing spaces are mistaken for
+  multi-line SQL statements in the sqlite3 command-line interface.
+
+- gh-132969: Prevent the :class:`~concurrent.futures.ProcessPoolExecutor`
+  executor thread, which remains running when :meth:`shutdown(wait=False)
+  <concurrent.futures.Executor.shutdown>`, from attempting to adjust the
+  pool's worker processes after the object state has already been reset
+  during shutdown. A combination of conditions, including a worker process
+  having terminated abormally, resulted in an exception and a potential hang
+  when the still-running executor thread attempted to replace dead workers
+  within the pool.
+
+- gh-130664: Support the ``'_'`` digit separator in formatting of the
+  integral part of :class:`~decimal.Decimal`'s.  Patch by Sergey B
+  Kirpichev.
+
+- gh-85702: If ``zoneinfo._common.load_tzdata`` is given a package without a
+  resource a ``ZoneInfoNotFoundError`` is raised rather than a
+  :exc:`IsADirectoryError`.
+
+- gh-130664: Handle corner-case for :class:`~fractions.Fraction`'s
+  formatting: treat zero-padding (preceding the width field by a zero
+  (``'0'``) character) as an equivalent to a fill character of ``'0'`` with
+  an alignment type of ``'='``, just as in case of :class:`float`'s.
+
+Documentation
+-------------
+
+- gh-135171: Document that the :term:`iterator` for the leftmost
+  :keyword:`!for` clause in the generator expression is created immediately.
+
+Core and Builtins
+-----------------
+
+- gh-58124: Fix name of the Python encoding in Unicode errors of the code
+  page codec: use "cp65000" and "cp65001" instead of "CP_UTF7" and "CP_UTF8"
+  which are not valid Python code names. Patch by Victor Stinner.
+
+- gh-137314: Fixed a regression where raw f-strings incorrectly interpreted
+  escape sequences in format specifications. Raw f-strings now properly
+  preserve literal backslashes in format specs, matching the behavior from
+  Python 3.11. For example, ``rf"{obj:\xFF}"`` now correctly produces
+  ``'\\xFF'`` instead of ``'ÿ'``. Patch by Pablo Galindo.
+
+- gh-136541: Fix some issues with the perf trampolines on x86-64 and
+  aarch64.  The trampolines were not being generated correctly for some
+  cases, which could lead to the perf integration not working correctly.
+  Patch by Pablo Galindo.
+
+- gh-109700: Fix memory error handling in :c:func:`PyDict_SetDefault`.
+
+- gh-78465: Fix error message for ``cls.__new__(cls, ...)`` where ``cls`` is
+  not instantiable builtin or extension type (with ``tp_new`` set to
+  ``NULL``).
+
+- gh-135871: Non-blocking mutex lock attempts now return immediately when
+  the lock is busy instead of briefly spinning in the :term:`free threading`
+  build.
+
+- gh-135607: Fix potential :mod:`weakref` races in an object's destructor on
+  the :term:`free threaded <free threading>` build.
+
+- gh-135496: Fix typo in the f-string conversion type error ("exclamanation"
+  -> "exclamation").
+
+- gh-130077: Properly raise custom syntax errors when incorrect syntax
+  containing names that are prefixes of soft keywords is encountered.  Patch
+  by Pablo Galindo.
+
+- gh-135148: Fixed a bug where f-string debug expressions (using =) would
+  incorrectly strip out parts of strings containing escaped quotes and #
+  characters. Patch by Pablo Galindo.
+
+- gh-133136: Limit excess memory usage in the :term:`free threading` build
+  when a large dictionary or list is resized and accessed by multiple
+  threads.
+
+- gh-132617: Fix :meth:`dict.update` modification check that could
+  incorrectly raise a "dict mutated during update" error when a different
+  dictionary was modified that happens to share the same underlying keys
+  object.
+
+- gh-91153: Fix a crash when a :class:`bytearray` is concurrently mutated
+  during item assignment.
+
+- gh-127971: Fix off-by-one read beyond the end of a string in string
+  search.
+
+- gh-125723: Fix crash with ``gi_frame.f_locals`` when generator frames
+  outlive their generator. Patch by Mikhail Efimov.
+
+Build
+-----
+
+- gh-135497: Fix the detection of ``MAXLOGNAME`` in the ``configure.ac``
+  script.
+
+
 What's New in Python 3.13.5 final?
 ==================================
 
@@ -259,7 +541,8 @@ Library
   :func:`warnings.deprecated`. Patch by Xuehai Pan.
 
 - gh-91555: Ignore log messages generated during handling of log messages,
-  to avoid deadlock or infinite recursion.
+  to avoid deadlock or infinite recursion. [NOTE: This change has since been
+  reverted.]
 
 - gh-131434: Improve error reporting for incorrect format in
   :func:`time.strptime`.
