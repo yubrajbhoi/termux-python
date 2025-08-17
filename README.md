@@ -25,13 +25,13 @@ All the files appended with `t` are the free-threaded version.
 
 ### DEB Packages
 
- - [python313_3.13.6_aarch64.deb](https://public.8018985.xyz/python313_3.13.6_aarch64.deb)
- - [python313_3.13.6t_aarch64.deb](https://public.8018985.xyz/python313_3.13.6t_aarch64.deb)
+ - [python313_3.13.7_aarch64.deb](https://public.8018985.xyz/python313_3.13.7_aarch64.deb)
+ - [python313_3.13.7t_aarch64.deb](https://public.8018985.xyz/python313_3.13.7t_aarch64.deb)
 
 ### Stow packages
 
- - [python-3.13.6-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.6-aarch64.tar.zst)
- - [python-3.13.6t-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.6t-aarch64.tar.zst)
+ - [python-3.13.7-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.7-aarch64.tar.zst)
+ - [python-3.13.7t-aarch64.tar.zst](https://public.8018985.xyz/python-3.13.7t-aarch64.tar.zst)
 
 ### Python 3.14.0 Release Candidates
 
