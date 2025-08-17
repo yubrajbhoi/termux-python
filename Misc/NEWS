@@ -2,6 +2,47 @@
 Python News
 +++++++++++
 
+What's New in Python 3.13.7 final?
+==================================
+
+*Release date: 2025-08-14*
+
+Library
+-------
+
+- gh-137583: Fix a deadlock introduced in 3.13.6 when a call to
+  :meth:`ssl.SSLSocket.recv <socket.socket.recv>` was blocked in one thread,
+  and then another method on the object (such as :meth:`ssl.SSLSocket.send
+  <socket.socket.send>`) was subsequently called in another thread.
+
+- gh-137044: Return large limit values as positive integers instead of
+  negative integers in :func:`resource.getrlimit`. Accept large values and
+  reject negative values (except :data:`~resource.RLIM_INFINITY`) for limits
+  in :func:`resource.setrlimit`.
+
+- gh-136914: Fix retrieval of :attr:`doctest.DocTest.lineno` for objects
+  decorated with :func:`functools.cache` or
+  :class:`functools.cached_property`.
+
+- gh-131788: Make ``ResourceTracker.send`` from :mod:`multiprocessing`
+  re-entrant safe
+
+Documentation
+-------------
+
+- gh-136155: We are now checking for fatal errors in EPUB builds in CI.
+
+Core and Builtins
+-----------------
+
+- gh-137400: Fix a crash in the :term:`free threading` build when disabling
+  profiling or tracing across all threads with
+  :c:func:`PyEval_SetProfileAllThreads` or
+  :c:func:`PyEval_SetTraceAllThreads` or their Python equivalents
+  :func:`threading.settrace_all_threads` and
+  :func:`threading.setprofile_all_threads`.
+
+
 What's New in Python 3.13.6 final?
 ==================================
 
