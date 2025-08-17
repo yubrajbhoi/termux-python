@@ -37,11 +37,11 @@ All the files appended with `t` are the free-threaded version.
 
 The source code is in `edge` branch.
 
- - [python-3.14.0rc1-aarch64.deb](https://public.8018985.xyz/python-3.14.0rc1-aarch64.deb)
- - [python-3.14.0rc1t-aarch64.deb](https://public.8018985.xyz/python-3.14.0rc1t-aarch64.deb)
+ - [python314_3.14.0rc2_aarch64.deb](https://public.8018985.xyz/python314_3.14.0rc2_aarch64.deb)
+ - [python314_3.14.0rc2t_aarch64.deb](https://public.8018985.xyz/python314_3.14.0rc2t_aarch64.deb)
 
- - [python-3.14.0rc1-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc1-aarch64.tar.zst)
- - [python-3.14.0rc1t-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc1t-aarch64.tar.zst)
+ - [python-3.14.0rc2-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc2-aarch64.tar.zst)
+ - [python-3.14.0rc2t-aarch64.tar.zst](https://public.8018985.xyz/python-3.14.0rc2t-aarch64.tar.zst)
 
 ## How to install
 
