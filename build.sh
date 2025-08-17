@@ -43,6 +43,6 @@ rm ./target/bin/python3-config
 rm ./target/lib/pkgconfig/python3-embed.pc
 rm ./target/lib/pkgconfig/python3.pc
 
-rm ./target/share/man/man1/python3.1
+rm -r ./target/share
 
-mv target python-3.13.5
+mv target python-3.14.0
