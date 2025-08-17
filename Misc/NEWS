@@ -2,6 +2,106 @@
 Python News
 +++++++++++
 
+What's New in Python 3.14.0 release candidate 2?
+================================================
+
+*Release date: 2025-08-14*
+
+macOS
+-----
+
+- gh-137450: macOS installer shell path management improvements: separate
+  the installer ``Shell profile updater`` postinstall script from the
+  ``Update Shell Profile.command`` to enable more robust error handling.
+
+- gh-137134: Update macOS installer to ship with SQLite version 3.50.4.
+
+Windows
+-------
+
+- gh-137134: Update Windows installer to ship with SQLite 3.50.4.
+
+Library
+-------
+
+- gh-137426: Remove the code deprecation of
+  ``importlib.abc.ResourceLoader``. It is documented as deprecated, but left
+  for backwards compatibility with other classes in ``importlib.abc``.
+
+- gh-137282: Fix tab completion and :func:`dir` on
+  :mod:`concurrent.futures`.
+
+- gh-137257: Bump the version of pip bundled in ensurepip to version 25.2
+
+- gh-137226: Fix behavior of :meth:`annotationlib.ForwardRef.evaluate` when
+  the *type_params* parameter is passed and the name of a type param is also
+  present in an enclosing scope.
+
+- gh-130522: Fix unraisable :exc:`TypeError` raised during
+  :term:`interpreter shutdown` in the :mod:`threading` module.
+
+- gh-137059: Fix handling of file URLs with a Windows drive letter in the
+  URL authority by :func:`urllib.request.url2pathname`. This fixes a
+  regression in earlier pre-releases of Python 3.14.
+
+- gh-130577: :mod:`tarfile` now validates archives to ensure member offsets
+  are non-negative.  (Contributed by Alexander Enrique Urieles Nieto in
+  :gh:`130577`.)
+
+- gh-135228: When :mod:`dataclasses` replaces a class with a slotted
+  dataclass, the original class can now be garbage collected again. Earlier
+  changes in Python 3.14 caused this class to always remain in existence
+  together with the replacement class synthesized by :mod:`dataclasses`.
+
+Documentation
+-------------
+
+- gh-136155: We are now checking for fatal errors in EPUB builds in CI.
+
+Core and Builtins
+-----------------
+
+- gh-137400: Fix a crash in the :term:`free threading` build when disabling
+  profiling or tracing across all threads with
+  :c:func:`PyEval_SetProfileAllThreads` or
+  :c:func:`PyEval_SetTraceAllThreads` or their Python equivalents
+  :func:`threading.settrace_all_threads` and
+  :func:`threading.setprofile_all_threads`.
+
+- gh-137314: Fixed a regression where raw f-strings incorrectly interpreted
+  escape sequences in format specifications. Raw f-strings now properly
+  preserve literal backslashes in format specs, matching the behavior from
+  Python 3.11. For example, ``rf"{obj:\xFF}"`` now correctly produces
+  ``'\\xFF'`` instead of ``'ÿ'``. Patch by Pablo Galindo.
+
+- gh-137308: A standalone docstring in a node body is optimized as a
+  :keyword:`pass` statement to ensure that the node's body is never empty.
+  There was a :exc:`ValueError` in :func:`compile` otherwise.
+
+- gh-137288: Fix bug where some bytecode instructions of a boolean
+  expression are not associated with the correct exception handler.
+
+- gh-134291: Remove some newer macOS API usage from the JIT compiler in
+  order to restore compatibility with older OSX 10.15 deployment targets.
+
+- gh-131338: Disable computed stack limit checks on non-glibc linux
+  platforms to fix crashes on deep recursion.
+
+- gh-136870: Fix data races while de-instrumenting bytecode of code objects
+  running concurrently in threads.
+
+C API
+-----
+
+- gh-137573: Mark ``_PyOptimizer_Optimize`` as :c:macro:`Py_NO_INLINE` to
+  prevent stack overflow crashes on macOS.
+
+Build
+-----
+
+- gh-132339: Add support for OpenSSL 3.5.
+
+
 What's New in Python 3.14.0 release candidate 1?
 ================================================
 

@@ -244,7 +244,7 @@
 
 
 #if defined(HAVE_SYS_XATTR_H)
-#  if defined(HAVE_LINUX_LIMITS_H) && !defined(__FreeBSD_kernel__) && !defined(__GNU__) && !defined(__ANDROID__)
+#  if defined(HAVE_LINUX_LIMITS_H) && !defined(__FreeBSD_kernel__) && !defined(__GNU__)
 #    define USE_XATTRS
 #    include <linux/limits.h>  // Needed for XATTR_SIZE_MAX on musl libc.
 #  endif

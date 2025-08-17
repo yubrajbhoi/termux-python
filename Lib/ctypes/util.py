@@ -259,7 +259,7 @@ elif os.name == "posix":
             # assuming GNU binutils / ELF
             if not f:
                 return None
-            objdump = shutil.which('llvm-objdump')
+            objdump = shutil.which('objdump')
             if not objdump:
                 # objdump is not available, give up
                 return None
@@ -296,7 +296,7 @@ elif os.name == "posix":
             expr = os.fsencode(expr)
 
             try:
-                proc = subprocess.Popen(('/data/data/com.termux/files/usr/bin/ldconfig', '-r'),
+                proc = subprocess.Popen(('/sbin/ldconfig', '-r'),
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.DEVNULL)
             except OSError:  # E.g. command not found
@@ -387,7 +387,7 @@ elif os.name == "posix":
         def _findLib_ld(name):
             # See issue #9998 for why this is needed
             expr = r'[^\(\)\s]*lib%s\.[^\(\)\s]*' % re.escape(name)
-            cmd = ['ld.lld', '-t']
+            cmd = ['ld', '-t']
             libpath = os.environ.get('LD_LIBRARY_PATH')
             if libpath:
                 for d in libpath.split(':'):
