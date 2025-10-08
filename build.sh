@@ -31,7 +31,7 @@ export CPPFLAGS='-D__ANDROID_API__=24 -Wno-implicit-function-declaration'
 export CFLAGS='-D__ANDROID_API__=24 -Wno-implicit-function-declaration -Wno-int-conversion'
 mkdir -p target
 
-bash ./configure --disable-gil --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | tee conf.log
+bash ./configure --prefix="$PWD/target" $TERMUX_PKG_EXTRA_CONFIGURE_ARGS 2>&1 | tee conf.log
 make -j6 2>&1 | tee build.log
 make install
 
@@ -45,4 +45,4 @@ rm ./target/lib/pkgconfig/python3.pc
 
 rm -r ./target/share
 
-mv target python-3.13.7
+mv target python-3.14.0
