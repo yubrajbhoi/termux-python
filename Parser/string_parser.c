@@ -19,7 +19,8 @@ warn_invalid_escape_sequence(Parser *p, const char* buffer, const char *first_in
         return 0;
     }
     unsigned char c = (unsigned char)*first_invalid_escape;
-    if ((t->type == FSTRING_MIDDLE || t->type == FSTRING_END) && (c == '{' || c == '}')) {
+    if ((t->type == FSTRING_MIDDLE || t->type == FSTRING_END || t->type == TSTRING_MIDDLE || t->type == TSTRING_END)
+            && (c == '{' || c == '}')) {
         // in this case the tokenizer has already emitted a warning,
         // see Parser/tokenizer/helpers.c:warn_invalid_escape_sequence
         return 0;
@@ -28,9 +29,16 @@ warn_invalid_escape_sequence(Parser *p, const char* buffer, const char *first_in
     int octal = ('4' <= c && c <= '7');
     PyObject *msg =
         octal
-        ? PyUnicode_FromFormat("invalid octal escape sequence '\\%.3s'",
-                               first_invalid_escape)
-        : PyUnicode_FromFormat("invalid escape sequence '\\%c'", c);
+        ? PyUnicode_FromFormat(
+              "\"\\%.3s\" is an invalid octal escape sequence. "
+              "Such sequences will not work in the future. "
+              "Did you mean \"\\\\%.3s\"? A raw string is also an option.",
+              first_invalid_escape, first_invalid_escape)
+        : PyUnicode_FromFormat(
+              "\"\\%c\" is an invalid escape sequence. "
+              "Such sequences will not work in the future. "
+              "Did you mean \"\\\\%c\"? A raw string is also an option.",
+              c, c);
     if (msg == NULL) {
         return -1;
     }
@@ -92,11 +100,15 @@ warn_invalid_escape_sequence(Parser *p, const char* buffer, const char *first_in
             p->known_err_token = t;
             if (octal) {
                 RAISE_ERROR_KNOWN_LOCATION(p, PyExc_SyntaxError, lineno, col_offset-1, lineno, col_offset+1,
-                "invalid octal escape sequence '\\%.3s'", first_invalid_escape);
+                    "\"\\%.3s\" is an invalid octal escape sequence. "
+                    "Did you mean \"\\\\%.3s\"? A raw string is also an option.",
+                    first_invalid_escape, first_invalid_escape);
             }
             else {
                 RAISE_ERROR_KNOWN_LOCATION(p, PyExc_SyntaxError, lineno, col_offset-1, lineno, col_offset+1,
-                "invalid escape sequence '\\%c'", c);
+                    "\"\\%c\" is an invalid escape sequence. "
+                    "Did you mean \"\\\\%c\"? A raw string is also an option.",
+                    c, c);
             }
         }
         Py_DECREF(msg);

@@ -33,8 +33,6 @@
 #include "row.h"
 #include "blob.h"
 
-#include "pycore_import.h"        // _PyImport_GetModuleAttrString()
-
 #if SQLITE_VERSION_NUMBER < 3015002
 #error "SQLite 3.15.2 or higher required"
 #endif
@@ -234,7 +232,7 @@ static int
 load_functools_lru_cache(PyObject *module)
 {
     pysqlite_state *state = pysqlite_get_state(module);
-    state->lru_cache = _PyImport_GetModuleAttrString("functools", "lru_cache");
+    state->lru_cache = PyImport_ImportModuleAttrString("functools", "lru_cache");
     if (state->lru_cache == NULL) {
         return -1;
     }
@@ -619,7 +617,7 @@ module_clear(PyObject *module)
 static void
 module_free(void *module)
 {
-    module_clear((PyObject *)module);
+    (void)module_clear((PyObject *)module);
 }
 
 #define ADD_TYPE(module, type)                 \
@@ -711,10 +709,6 @@ module_exec(PyObject *module)
 
     /* Set integer constants */
     if (add_integer_constants(module) < 0) {
-        goto error;
-    }
-
-    if (PyModule_AddStringConstant(module, "_deprecated_version", PYSQLITE_VERSION) < 0) {
         goto error;
     }
 

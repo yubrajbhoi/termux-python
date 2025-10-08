@@ -28,6 +28,7 @@ extensions = [
     'c_annotations',
     'changes',
     'glossary_search',
+    'grammar_snippet',
     'implementation_detail',
     'issue_role',
     'lexers',
@@ -68,7 +69,7 @@ manpages_url = 'https://manpages.debian.org/{path}'
 
 # General substitutions.
 project = 'Python'
-copyright = "2001-%Y, Python Software Foundation"
+copyright = "2001 Python Software Foundation"
 
 # We look for the Include/patchlevel.h file in the current Python source tree
 # and replace the values accordingly.
@@ -83,6 +84,13 @@ rst_epilog = f"""
 .. |x_dot_y_b2_literal| replace:: ``{version}.0b2``
 .. |applications_python_version_literal| replace:: ``/Applications/Python {version}/``
 .. |usr_local_bin_python_x_dot_y_literal| replace:: ``/usr/local/bin/python{version}``
+
+.. Apparently this how you hack together a formatted link:
+   (https://www.docutils.org/docs/ref/rst/directives.html#replacement-text)
+.. |FORCE_COLOR| replace:: ``FORCE_COLOR``
+.. _FORCE_COLOR: https://force-color.org/
+.. |NO_COLOR| replace:: ``NO_COLOR``
+.. _NO_COLOR: https://no-color.org/
 """
 
 # There are two options for replacing |today|. Either, you set today to some
@@ -213,13 +221,6 @@ nitpick_ignore = [
     ('envvar', 'USER'),
     ('envvar', 'USERNAME'),
     ('envvar', 'USERPROFILE'),
-    # Deprecated function that was never documented:
-    ('py:func', 'getargspec'),
-    ('py:func', 'inspect.getargspec'),
-    # Undocumented modules that users shouldn't have to worry about
-    # (implementation details of `os.path`):
-    ('py:mod', 'ntpath'),
-    ('py:mod', 'posixpath'),
 ]
 
 # Temporary undocumented names.
@@ -234,10 +235,7 @@ nitpick_ignore += [
     ('py:meth', '_SubParsersAction.add_parser'),
     # Attributes/methods/etc. that definitely should be documented better,
     # but are deferred for now:
-    ('py:attr', '__annotations__'),
-    ('py:meth', '__missing__'),
     ('py:attr', '__wrapped__'),
-    ('py:meth', 'index'),  # list.index, tuple.index, etc.
 ]
 
 # gh-106948: Copy standard C types declared in the "c:type" domain and C

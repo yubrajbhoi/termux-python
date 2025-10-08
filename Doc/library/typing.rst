@@ -230,9 +230,11 @@ For example:
 
    callback: Callable[[str], Awaitable[None]] = on_update
 
+.. index:: single: ...; ellipsis literal
+
 The subscription syntax must always be used with exactly two values: the
 argument list and the return type.  The argument list must be a list of types,
-a :class:`ParamSpec`, :data:`Concatenate`, or an ellipsis. The return type must
+a :class:`ParamSpec`, :data:`Concatenate`, or an ellipsis (``...``). The return type must
 be a single type.
 
 If a literal ellipsis ``...`` is given as the argument list, it indicates that
@@ -375,8 +377,11 @@ accepts *any number* of type arguments::
    # but ``z`` has been assigned to a tuple of length 3
    z: tuple[int] = (1, 2, 3)
 
+.. index:: single: ...; ellipsis literal
+
 To denote a tuple which could be of *any* length, and in which all elements are
-of the same type ``T``, use ``tuple[T, ...]``. To denote an empty tuple, use
+of the same type ``T``, use the literal ellipsis ``...``: ``tuple[T, ...]``.
+To denote an empty tuple, use
 ``tuple[()]``. Using plain ``tuple`` as an annotation is equivalent to using
 ``tuple[Any, ...]``::
 
@@ -1086,7 +1091,7 @@ Special forms
 These can be used as types in annotations. They all support subscription using
 ``[]``, but each has a unique syntax.
 
-.. data:: Union
+.. class:: Union
 
    Union type; ``Union[X, Y]`` is equivalent to ``X | Y`` and means either X or Y.
 
@@ -1127,6 +1132,14 @@ These can be used as types in annotations. They all support subscription using
       Unions can now be written as ``X | Y``. See
       :ref:`union type expressions<types-union>`.
 
+   .. versionchanged:: 3.14
+      :class:`types.UnionType` is now an alias for :class:`Union`, and both
+      ``Union[int, str]`` and ``int | str`` create instances of the same class.
+      To check whether an object is a ``Union`` at runtime, use
+      ``isinstance(obj, Union)``. For compatibility with earlier versions of
+      Python, use
+      ``get_origin(obj) is typing.Union or get_origin(obj) is types.UnionType``.
+
 .. data:: Optional
 
    ``Optional[X]`` is equivalent to ``X | None`` (or ``Union[X, None]``).
@@ -1153,6 +1166,8 @@ These can be used as types in annotations. They all support subscription using
 .. data:: Concatenate
 
    Special form for annotating higher-order functions.
+
+   .. index:: single: ...; ellipsis literal
 
    ``Concatenate`` can be used in conjunction with :ref:`Callable <annotating-callables>` and
    :class:`ParamSpec` to annotate a higher-order callable which adds, removes,
@@ -1868,6 +1883,16 @@ without the dedicated syntax, as documented below.
          the bound is evaluated only when the attribute is accessed, not when
          the type variable is created (see :ref:`lazy-evaluation`).
 
+   .. method:: evaluate_bound
+
+      An :term:`evaluate function` corresponding to the :attr:`~TypeVar.__bound__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`~TypeVar.__bound__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format.
+
+      .. versionadded:: 3.14
+
    .. attribute:: __constraints__
 
       A tuple containing the constraints of the type variable, if any.
@@ -1878,12 +1903,32 @@ without the dedicated syntax, as documented below.
          the constraints are evaluated only when the attribute is accessed, not when
          the type variable is created (see :ref:`lazy-evaluation`).
 
+   .. method:: evaluate_constraints
+
+      An :term:`evaluate function` corresponding to the :attr:`~TypeVar.__constraints__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`~TypeVar.__constraints__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format.
+
+      .. versionadded:: 3.14
+
    .. attribute:: __default__
 
       The default value of the type variable, or :data:`typing.NoDefault` if it
       has no default.
 
       .. versionadded:: 3.13
+
+   .. method:: evaluate_default
+
+      An :term:`evaluate function` corresponding to the :attr:`~TypeVar.__default__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`~TypeVar.__default__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format.
+
+      .. versionadded:: 3.14
 
    .. method:: has_default()
 
@@ -2023,6 +2068,16 @@ without the dedicated syntax, as documented below.
 
       .. versionadded:: 3.13
 
+   .. method:: evaluate_default
+
+      An :term:`evaluate function` corresponding to the :attr:`~TypeVarTuple.__default__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`~TypeVarTuple.__default__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format.
+
+      .. versionadded:: 3.14
+
    .. method:: has_default()
 
       Return whether or not the type variable tuple has a default value. This is equivalent
@@ -2118,6 +2173,16 @@ without the dedicated syntax, as documented below.
       has no default.
 
       .. versionadded:: 3.13
+
+   .. method:: evaluate_default
+
+      An :term:`evaluate function` corresponding to the :attr:`~ParamSpec.__default__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`~ParamSpec.__default__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format.
+
+      .. versionadded:: 3.14
 
    .. method:: has_default()
 
@@ -2243,6 +2308,46 @@ without the dedicated syntax, as documented below.
          >>> Recursive.__value__
          Mutually
 
+   .. method:: evaluate_value
+
+      An :term:`evaluate function` corresponding to the :attr:`__value__` attribute.
+      When called directly, this method supports only the :attr:`~annotationlib.Format.VALUE`
+      format, which is equivalent to accessing the :attr:`__value__` attribute directly,
+      but the method object can be passed to :func:`annotationlib.call_evaluate_function`
+      to evaluate the value in a different format:
+
+      .. doctest::
+
+         >>> type Alias = undefined
+         >>> Alias.__value__
+         Traceback (most recent call last):
+         ...
+         NameError: name 'undefined' is not defined
+         >>> from annotationlib import Format, call_evaluate_function
+         >>> Alias.evaluate_value(Format.VALUE)
+         Traceback (most recent call last):
+         ...
+         NameError: name 'undefined' is not defined
+         >>> call_evaluate_function(Alias.evaluate_value, Format.FORWARDREF)
+         ForwardRef('undefined')
+
+      .. versionadded:: 3.14
+
+   .. rubric:: Unpacking
+
+   Type aliases support star unpacking using the ``*Alias`` syntax.
+   This is equivalent to using ``Unpack[Alias]`` directly:
+
+   .. doctest::
+
+      >>> type Alias = tuple[int, str]
+      >>> type Unpacked = tuple[bool, *Alias]
+      >>> Unpacked.__value__
+      tuple[bool, typing.Unpack[Alias]]
+
+   .. versionadded:: 3.14
+
+
 Other special directives
 """"""""""""""""""""""""
 
@@ -2325,6 +2430,10 @@ types.
 
    .. versionchanged:: 3.11
       Added support for generic namedtuples.
+
+   .. versionchanged:: 3.14
+      Using :func:`super` (and the ``__class__`` :term:`closure variable`) in methods of ``NamedTuple`` subclasses
+      is unsupported and causes a :class:`TypeError`.
 
    .. deprecated-removed:: 3.13 3.15
       The undocumented keyword argument syntax for creating NamedTuple classes
@@ -2697,7 +2806,7 @@ types.
 
       .. versionadded:: 3.13
 
-   See :pep:`589` for more examples and detailed rules of using ``TypedDict``.
+   See the `TypedDict <https://typing.python.org/en/latest/spec/typeddict.html#typeddict>`_ section in the typing documentation for more examples and detailed rules.
 
    .. versionadded:: 3.8
 
@@ -2760,17 +2869,35 @@ with :func:`@runtime_checkable <runtime_checkable>`.
     An ABC with one abstract method ``__round__``
     that is covariant in its return type.
 
-ABCs for working with IO
-------------------------
+.. _typing-io:
 
-.. class:: IO
-           TextIO
-           BinaryIO
+ABCs and Protocols for working with I/O
+---------------------------------------
 
-   Generic type ``IO[AnyStr]`` and its subclasses ``TextIO(IO[str])``
+.. class:: IO[AnyStr]
+           TextIO[AnyStr]
+           BinaryIO[AnyStr]
+
+   Generic class ``IO[AnyStr]`` and its subclasses ``TextIO(IO[str])``
    and ``BinaryIO(IO[bytes])``
    represent the types of I/O streams such as returned by
-   :func:`open`.
+   :func:`open`. Please note that these classes are not protocols, and
+   their interface is fairly broad.
+
+The protocols :class:`io.Reader` and :class:`io.Writer` offer a simpler
+alternative for argument types, when only the ``read()`` or ``write()``
+methods are accessed, respectively::
+
+   def read_and_write(reader: Reader[str], writer: Writer[bytes]):
+       data = reader.read()
+       writer.write(data.encode())
+
+Also consider using :class:`collections.abc.Iterable` for iterating over
+the lines of an input stream::
+
+   def read_config(stream: Iterable[str]):
+       for line in stream:
+           ...
 
 Functions and decorators
 ------------------------
@@ -3237,8 +3364,13 @@ Introspection helpers
      with ``T``, unless *include_extras* is set to ``True`` (see
      :class:`Annotated` for more information).
 
-   See also :func:`inspect.get_annotations`, a lower-level function that
+   See also :func:`annotationlib.get_annotations`, a lower-level function that
    returns annotations more directly.
+
+   .. caution::
+
+      This function may execute arbitrary code contained in annotations.
+      See :ref:`annotationlib-security` for more information.
 
    .. note::
 
@@ -3360,7 +3492,7 @@ Introspection helpers
    Class used for internal typing representation of string forward references.
 
    For example, ``List["SomeClass"]`` is implicitly transformed into
-   ``List[ForwardRef("SomeClass")]``.  ``ForwardRef`` should not be instantiated by
+   ``List[ForwardRef("SomeClass")]``.  :class:`!ForwardRef` should not be instantiated by
    a user, but may be used by introspection tools.
 
    .. note::
@@ -3369,6 +3501,29 @@ Introspection helpers
       will not automatically resolve to ``list[SomeClass]``.
 
    .. versionadded:: 3.7.4
+
+   .. versionchanged:: 3.14
+      This is now an alias for :class:`annotationlib.ForwardRef`. Several undocumented
+      behaviors of this class have been changed; for example, after a ``ForwardRef`` has
+      been evaluated, the evaluated value is no longer cached.
+
+.. function:: evaluate_forward_ref(forward_ref, *, owner=None, globals=None, locals=None, type_params=None, format=annotationlib.Format.VALUE)
+
+   Evaluate an :class:`annotationlib.ForwardRef` as a :term:`type hint`.
+
+   This is similar to calling :meth:`annotationlib.ForwardRef.evaluate`,
+   but unlike that method, :func:`!evaluate_forward_ref` also
+   recursively evaluates forward references nested within the type hint.
+
+   See the documentation for :meth:`annotationlib.ForwardRef.evaluate` for
+   the meaning of the *owner*, *globals*, *locals*, *type_params*, and *format* parameters.
+
+   .. caution::
+
+      This function may execute arbitrary code contained in annotations.
+      See :ref:`annotationlib-security` for more information.
+
+   .. versionadded:: 3.14
 
 .. data:: NoDefault
 
@@ -3392,28 +3547,32 @@ Constant
 .. data:: TYPE_CHECKING
 
    A special constant that is assumed to be ``True`` by 3rd party static
-   type checkers. It is ``False`` at runtime.
+   type checkers. It's ``False`` at runtime.
+
+   A module which is expensive to import, and which only contain types
+   used for typing annotations, can be safely imported inside an
+   ``if TYPE_CHECKING:`` block.  This prevents the module from actually
+   being imported at runtime; annotations aren't eagerly evaluated
+   (see :pep:`649`) so using undefined symbols in annotations is
+   harmless--as long as you don't later examine them.
+   Your static type analysis tool will set ``TYPE_CHECKING`` to
+   ``True`` during static type analysis, which means the module will
+   be imported and the types will be checked properly during such analysis.
 
    Usage::
 
       if TYPE_CHECKING:
           import expensive_mod
 
-      def fun(arg: 'expensive_mod.SomeType') -> None:
+      def fun(arg: expensive_mod.SomeType) -> None:
           local_var: expensive_mod.AnotherType = other_fun()
 
-   The first type annotation must be enclosed in quotes, making it a
-   "forward reference", to hide the ``expensive_mod`` reference from the
-   interpreter runtime.  Type annotations for local variables are not
-   evaluated, so the second annotation does not need to be enclosed in quotes.
-
-   .. note::
-
-      If ``from __future__ import annotations`` is used,
-      annotations are not evaluated at function definition time.
-      Instead, they are stored as strings in ``__annotations__``.
-      This makes it unnecessary to use quotes around the annotation
-      (see :pep:`563`).
+   If you occasionally need to examine type annotations at runtime
+   which may contain undefined symbols, use
+   :meth:`annotationlib.get_annotations` with a ``format`` parameter
+   of :attr:`annotationlib.Format.STRING` or
+   :attr:`annotationlib.Format.FORWARDREF` to safely retrieve the
+   annotations without raising :exc:`NameError`.
 
    .. versionadded:: 3.5.2
 
@@ -3631,11 +3790,25 @@ Aliases to container ABCs in :mod:`collections.abc`
 
 .. class:: ByteString(Sequence[int])
 
-   This type represents the types :class:`bytes`, :class:`bytearray`,
-   and :class:`memoryview` of byte sequences.
+   Deprecated alias to :class:`collections.abc.ByteString`.
 
-   .. deprecated-removed:: 3.9 3.14
-      Prefer :class:`collections.abc.Buffer`, or a union like ``bytes | bytearray | memoryview``.
+   Use ``isinstance(obj, collections.abc.Buffer)`` to test if ``obj``
+   implements the :ref:`buffer protocol <bufferobjects>` at runtime. For use in
+   type annotations, either use :class:`~collections.abc.Buffer` or a union
+   that explicitly specifies the types your code supports (e.g.,
+   ``bytes | bytearray | memoryview``).
+
+   :class:`!ByteString` was originally intended to be an abstract class that
+   would serve as a supertype of both :class:`bytes` and :class:`bytearray`.
+   However, since the ABC never had any methods, knowing that an object was an
+   instance of :class:`!ByteString` never actually told you anything useful
+   about the object. Other common buffer types such as :class:`memoryview` were
+   also never understood as subtypes of :class:`!ByteString` (either at runtime
+   or by static type checkers).
+
+   See :pep:`PEP 688 <688#current-options>` for more details.
+
+   .. deprecated-removed:: 3.9 3.17
 
 .. class:: Collection(Sized, Iterable[T_co], Container[T_co])
 
@@ -3932,7 +4105,7 @@ convenience. This is subject to change, and not all deprecations are listed.
      - :pep:`585`
    * - :class:`typing.ByteString`
      - 3.9
-     - 3.14
+     - 3.17
      - :gh:`91896`
    * - :data:`typing.Text`
      - 3.11

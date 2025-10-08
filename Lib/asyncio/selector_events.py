@@ -173,16 +173,20 @@ class BaseSelectorEventLoop(base_events.BaseEventLoop):
         # listening socket has triggered an EVENT_READ. There may be multiple
         # connections waiting for an .accept() so it is called in a loop.
         # See https://bugs.python.org/issue27906 for more details.
-        for _ in range(backlog):
+        for _ in range(backlog + 1):
             try:
                 conn, addr = sock.accept()
                 if self._debug:
                     logger.debug("%r got a new connection from %r: %r",
                                  server, addr, conn)
                 conn.setblocking(False)
-            except (BlockingIOError, InterruptedError, ConnectionAbortedError):
-                # Early exit because the socket accept buffer is empty.
-                return None
+            except ConnectionAbortedError:
+                # Discard connections that were aborted before accept().
+                continue
+            except (BlockingIOError, InterruptedError):
+                # Early exit because of a signal or
+                # the socket accept buffer is empty.
+                return
             except OSError as exc:
                 # There's nowhere to send the error, so just log it.
                 if exc.errno in (errno.EMFILE, errno.ENFILE,
@@ -1046,8 +1050,8 @@ class _SelectorSocketTransport(_SelectorTransport):
 
     def write(self, data):
         if not isinstance(data, (bytes, bytearray, memoryview)):
-            raise TypeError(f'data argument must be a bytes-like object, '
-                            f'not {type(data).__name__!r}')
+            raise TypeError(f'data argument must be a bytes, bytearray, or memoryview '
+                            f'object, not {type(data).__name__!r}')
         if self._eof:
             raise RuntimeError('Cannot call write() after write_eof()')
         if self._empty_waiter is not None:
@@ -1208,7 +1212,6 @@ class _SelectorSocketTransport(_SelectorTransport):
 class _SelectorDatagramTransport(_SelectorTransport, transports.DatagramTransport):
 
     _buffer_factory = collections.deque
-    _header_size = 8
 
     def __init__(self, loop, sock, protocol, address=None,
                  waiter=None, extra=None):
@@ -1282,13 +1285,13 @@ class _SelectorDatagramTransport(_SelectorTransport, transports.DatagramTranspor
 
         # Ensure that what we buffer is immutable.
         self._buffer.append((bytes(data), addr))
-        self._buffer_size += len(data) + self._header_size
+        self._buffer_size += len(data) + 8  # include header bytes
         self._maybe_pause_protocol()
 
     def _sendto_ready(self):
         while self._buffer:
             data, addr = self._buffer.popleft()
-            self._buffer_size -= len(data) + self._header_size
+            self._buffer_size -= len(data)
             try:
                 if self._extra['peername']:
                     self._sock.send(data)
@@ -1296,7 +1299,7 @@ class _SelectorDatagramTransport(_SelectorTransport, transports.DatagramTranspor
                     self._sock.sendto(data, addr)
             except (BlockingIOError, InterruptedError):
                 self._buffer.appendleft((data, addr))  # Try again later.
-                self._buffer_size += len(data) + self._header_size
+                self._buffer_size += len(data)
                 break
             except OSError as exc:
                 self._protocol.error_received(exc)

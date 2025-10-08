@@ -6,10 +6,9 @@ import doctest
 from http import cookies
 import pickle
 from test import support
-from test.support.testcase import ExtraAssertions
 
 
-class CookieTests(unittest.TestCase, ExtraAssertions):
+class CookieTests(unittest.TestCase):
 
     def test_basic(self):
         cases = [
@@ -205,6 +204,14 @@ class CookieTests(unittest.TestCase, ExtraAssertions):
         C['Customer']['httponly'] = True
         self.assertEqual(C.output(),
             'Set-Cookie: Customer="WILE_E_COYOTE"; HttpOnly; Secure')
+
+    def test_set_secure_httponly_partitioned_attrs(self):
+        C = cookies.SimpleCookie('Customer="WILE_E_COYOTE"')
+        C['Customer']['secure'] = True
+        C['Customer']['httponly'] = True
+        C['Customer']['partitioned'] = True
+        self.assertEqual(C.output(),
+            'Set-Cookie: Customer="WILE_E_COYOTE"; HttpOnly; Partitioned; Secure')
 
     def test_samesite_attrs(self):
         samesite_values = ['Strict', 'Lax', 'strict', 'lax']

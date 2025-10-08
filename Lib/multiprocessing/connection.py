@@ -11,13 +11,13 @@ __all__ = [ 'Client', 'Listener', 'Pipe', 'wait' ]
 
 import errno
 import io
+import itertools
 import os
 import sys
 import socket
 import struct
-import time
 import tempfile
-import itertools
+import time
 
 
 from . import util
@@ -39,7 +39,9 @@ except ImportError:
 #
 #
 
-BUFSIZE = 8192
+# 64 KiB is the default PIPE buffer size of most POSIX platforms.
+BUFSIZE = 64 * 1024
+
 # A very generous timeout when it comes to local connections...
 CONNECTION_TIMEOUT = 20.
 
@@ -179,6 +181,10 @@ class _ConnectionBase:
             finally:
                 self._handle = None
 
+    def _detach(self):
+        """Stop managing the underlying file descriptor or handle."""
+        self._handle = None
+
     def send_bytes(self, buf, offset=0, size=None):
         """Send the bytes data from a bytes-like object"""
         self._check_closed()
@@ -316,22 +322,32 @@ if _winapi:
                 try:
                     ov, err = _winapi.ReadFile(self._handle, bsize,
                                                 overlapped=True)
+
+                    sentinel = object()
+                    return_value = sentinel
                     try:
-                        if err == _winapi.ERROR_IO_PENDING:
-                            waitres = _winapi.WaitForMultipleObjects(
-                                [ov.event], False, INFINITE)
-                            assert waitres == WAIT_OBJECT_0
+                        try:
+                            if err == _winapi.ERROR_IO_PENDING:
+                                waitres = _winapi.WaitForMultipleObjects(
+                                    [ov.event], False, INFINITE)
+                                assert waitres == WAIT_OBJECT_0
+                        except:
+                            ov.cancel()
+                            raise
+                        finally:
+                            nread, err = ov.GetOverlappedResult(True)
+                            if err == 0:
+                                f = io.BytesIO()
+                                f.write(ov.getbuffer())
+                                return_value = f
+                            elif err == _winapi.ERROR_MORE_DATA:
+                                return_value = self._get_more_data(ov, maxsize)
                     except:
-                        ov.cancel()
-                        raise
-                    finally:
-                        nread, err = ov.GetOverlappedResult(True)
-                        if err == 0:
-                            f = io.BytesIO()
-                            f.write(ov.getbuffer())
-                            return f
-                        elif err == _winapi.ERROR_MORE_DATA:
-                            return self._get_more_data(ov, maxsize)
+                        if return_value is sentinel:
+                            raise
+
+                    if return_value is not sentinel:
+                        return return_value
                 except OSError as e:
                     if e.winerror == _winapi.ERROR_BROKEN_PIPE:
                         raise EOFError
@@ -392,7 +408,8 @@ class Connection(_ConnectionBase):
         handle = self._handle
         remaining = size
         while remaining > 0:
-            chunk = read(handle, remaining)
+            to_read = min(BUFSIZE, remaining)
+            chunk = read(handle, to_read)
             n = len(chunk)
             if n == 0:
                 if remaining == size:

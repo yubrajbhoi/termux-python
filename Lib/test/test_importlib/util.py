@@ -10,7 +10,6 @@ from test import support
 from test.support import import_helper
 from test.support import is_apple_mobile
 from test.support import os_helper
-from test.support.testcase import ExtraAssertions
 import unittest
 import sys
 import tempfile
@@ -81,7 +80,7 @@ def specialize_class(cls, kind, base=None, **kwargs):
     elif not isinstance(base, type):
         base = base[kind]
     name = '{}_{}'.format(kind, cls.__name__)
-    bases = (cls, base, ExtraAssertions)
+    bases = (cls, base)
     specialized = types.new_class(name, bases)
     specialized.__module__ = cls.__module__
     specialized._NAME = cls.__name__

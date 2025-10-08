@@ -460,8 +460,6 @@ class _ProactorWritePipeTransport(_ProactorBaseWritePipeTransport):
 class _ProactorDatagramTransport(_ProactorBasePipeTransport,
                                  transports.DatagramTransport):
     max_size = 256 * 1024
-    _header_size = 8
-
     def __init__(self, loop, sock, protocol, address=None,
                  waiter=None, extra=None):
         self._address = address
@@ -501,7 +499,7 @@ class _ProactorDatagramTransport(_ProactorBasePipeTransport,
 
         # Ensure that what we buffer is immutable.
         self._buffer.append((bytes(data), addr))
-        self._buffer_size += len(data) + self._header_size
+        self._buffer_size += len(data) + 8  # include header bytes
 
         if self._write_fut is None:
             # No current write operations are active, kick one off
@@ -528,7 +526,7 @@ class _ProactorDatagramTransport(_ProactorBasePipeTransport,
                 return
 
             data, addr = self._buffer.popleft()
-            self._buffer_size -= len(data) + self._header_size
+            self._buffer_size -= len(data)
             if self._address is not None:
                 self._write_fut = self._loop._proactor.send(self._sock,
                                                             data)

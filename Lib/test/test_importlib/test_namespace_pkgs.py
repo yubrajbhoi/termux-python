@@ -8,7 +8,6 @@ import tempfile
 import unittest
 
 from test.test_importlib import util
-from test.support.testcase import ExtraAssertions
 
 # needed tests:
 #
@@ -54,7 +53,7 @@ def namespace_tree_context(**kwargs):
     with import_context, sys_modules_context():
         yield
 
-class NamespacePackageTest(unittest.TestCase, ExtraAssertions):
+class NamespacePackageTest(unittest.TestCase):
     """
     Subclasses should define self.root and self.paths (under that root)
     to be added to sys.path.
@@ -287,25 +286,24 @@ class DynamicPathCalculation(NamespacePackageTest):
 
 class ZipWithMissingDirectory(NamespacePackageTest):
     paths = ['missing_directory.zip']
+    # missing_directory.zip contains:
+    #   Length      Date    Time    Name
+    # ---------  ---------- -----   ----
+    #        29  2012-05-03 18:13   foo/one.py
+    #         0  2012-05-03 20:57   bar/
+    #        38  2012-05-03 20:57   bar/two.py
+    # ---------                     -------
+    #        67                     3 files
 
-    @unittest.expectedFailure
     def test_missing_directory(self):
-        # This will fail because missing_directory.zip contains:
-        #   Length      Date    Time    Name
-        # ---------  ---------- -----   ----
-        #        29  2012-05-03 18:13   foo/one.py
-        #         0  2012-05-03 20:57   bar/
-        #        38  2012-05-03 20:57   bar/two.py
-        # ---------                     -------
-        #        67                     3 files
-
-        # Because there is no 'foo/', the zipimporter currently doesn't
-        #  know that foo is a namespace package
-
         import foo.one
+        self.assertEqual(foo.one.attr, 'portion1 foo one')
+
+    def test_missing_directory2(self):
+        import foo
+        self.assertNotHasAttr(foo, 'one')
 
     def test_present_directory(self):
-        # This succeeds because there is a "bar/" in the zip file
         import bar.two
         self.assertEqual(bar.two.attr, 'missing_directory foo two')
 

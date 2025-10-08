@@ -3,7 +3,6 @@ import unicodedata
 import unittest
 import urllib.parse
 from test import support
-from test.support.testcase import ExtraAssertions
 
 RFC1808_BASE = "http://a/b/c/d;p?q#f"
 RFC2396_BASE = "http://a/b/c/d;p?q"
@@ -103,7 +102,7 @@ parse_qs_test_cases = [
     (b"%81=%A9", {b'\x81': [b'\xa9']}),
 ]
 
-class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
+class UrlParseTestCase(unittest.TestCase):
 
     def checkRoundtrips(self, url, parsed, split, url2=None):
         if url2 is None:
@@ -340,7 +339,7 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
         split = (scheme,) + split
         self.checkRoundtrips(url, parsed, split)
 
-    def checkJoin(self, base, relurl, expected):
+    def checkJoin(self, base, relurl, expected, *, relroundtrip=True):
         with self.subTest(base=base, relurl=relurl):
             self.assertEqual(urllib.parse.urljoin(base, relurl), expected)
             baseb = base.encode('ascii')
@@ -348,10 +347,11 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
             expectedb = expected.encode('ascii')
             self.assertEqual(urllib.parse.urljoin(baseb, relurlb), expectedb)
 
-            relurl = urllib.parse.urlunsplit(urllib.parse.urlsplit(relurl))
-            self.assertEqual(urllib.parse.urljoin(base, relurl), expected)
-            relurlb = urllib.parse.urlunsplit(urllib.parse.urlsplit(relurlb))
-            self.assertEqual(urllib.parse.urljoin(baseb, relurlb), expectedb)
+            if relroundtrip:
+                relurl = urllib.parse.urlunsplit(urllib.parse.urlsplit(relurl))
+                self.assertEqual(urllib.parse.urljoin(base, relurl), expected)
+                relurlb = urllib.parse.urlunsplit(urllib.parse.urlsplit(relurlb))
+                self.assertEqual(urllib.parse.urljoin(baseb, relurlb), expectedb)
 
     @support.subTests('bytes', (False, True))
     @support.subTests('u', ['Python', './Python','x-newscheme://foo.com/stuff','x://y','x:/y','x:/','/',])
@@ -518,8 +518,6 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
 
     def test_urljoins(self):
         self.checkJoin(SIMPLE_BASE, 'g:h','g:h')
-        self.checkJoin(SIMPLE_BASE, 'http:g','http://a/b/c/g')
-        self.checkJoin(SIMPLE_BASE, 'http:','http://a/b/c/d')
         self.checkJoin(SIMPLE_BASE, 'g','http://a/b/c/g')
         self.checkJoin(SIMPLE_BASE, './g','http://a/b/c/g')
         self.checkJoin(SIMPLE_BASE, 'g/','http://a/b/c/g/')
@@ -540,8 +538,6 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
         self.checkJoin(SIMPLE_BASE, 'g/./h','http://a/b/c/g/h')
         self.checkJoin(SIMPLE_BASE, 'g/../h','http://a/b/c/h')
         self.checkJoin(SIMPLE_BASE, 'http:g','http://a/b/c/g')
-        self.checkJoin(SIMPLE_BASE, 'http:','http://a/b/c/d')
-        self.checkJoin(SIMPLE_BASE, 'http:?y','http://a/b/c/d?y')
         self.checkJoin(SIMPLE_BASE, 'http:g?y','http://a/b/c/g?y')
         self.checkJoin(SIMPLE_BASE, 'http:g?y/./x','http://a/b/c/g?y/./x')
         self.checkJoin('http:///', '..','http:///')
@@ -570,6 +566,125 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
 
         # issue 23703: don't duplicate filename
         self.checkJoin('a', 'b', 'b')
+
+        # Test with empty (but defined) components.
+        self.checkJoin(RFC1808_BASE, '', 'http://a/b/c/d;p?q#f')
+        self.checkJoin(RFC1808_BASE, '#', 'http://a/b/c/d;p?q#', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, '#z', 'http://a/b/c/d;p?q#z')
+        self.checkJoin(RFC1808_BASE, '?', 'http://a/b/c/d;p?', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, '?#z', 'http://a/b/c/d;p?#z', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, '?y', 'http://a/b/c/d;p?y')
+        self.checkJoin(RFC1808_BASE, ';', 'http://a/b/c/;')
+        self.checkJoin(RFC1808_BASE, ';?y', 'http://a/b/c/;?y')
+        self.checkJoin(RFC1808_BASE, ';#z', 'http://a/b/c/;#z')
+        self.checkJoin(RFC1808_BASE, ';x', 'http://a/b/c/;x')
+        self.checkJoin(RFC1808_BASE, '/w', 'http://a/w')
+        self.checkJoin(RFC1808_BASE, '//', 'http://a/b/c/d;p?q#f')
+        self.checkJoin(RFC1808_BASE, '//#z', 'http://a/b/c/d;p?q#z')
+        self.checkJoin(RFC1808_BASE, '//?y', 'http://a/b/c/d;p?y')
+        self.checkJoin(RFC1808_BASE, '//;x', 'http://;x')
+        self.checkJoin(RFC1808_BASE, '///w', 'http://a/w')
+        self.checkJoin(RFC1808_BASE, '//v', 'http://v')
+        # For backward compatibility with RFC1630, the scheme name is allowed
+        # to be present in a relative reference if it is the same as the base
+        # URI scheme.
+        self.checkJoin(RFC1808_BASE, 'http:', 'http://a/b/c/d;p?q#f')
+        self.checkJoin(RFC1808_BASE, 'http:#', 'http://a/b/c/d;p?q#', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'http:#z', 'http://a/b/c/d;p?q#z')
+        self.checkJoin(RFC1808_BASE, 'http:?', 'http://a/b/c/d;p?', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'http:?#z', 'http://a/b/c/d;p?#z', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'http:?y', 'http://a/b/c/d;p?y')
+        self.checkJoin(RFC1808_BASE, 'http:;', 'http://a/b/c/;')
+        self.checkJoin(RFC1808_BASE, 'http:;?y', 'http://a/b/c/;?y')
+        self.checkJoin(RFC1808_BASE, 'http:;#z', 'http://a/b/c/;#z')
+        self.checkJoin(RFC1808_BASE, 'http:;x', 'http://a/b/c/;x')
+        self.checkJoin(RFC1808_BASE, 'http:/w', 'http://a/w')
+        self.checkJoin(RFC1808_BASE, 'http://', 'http://a/b/c/d;p?q#f')
+        self.checkJoin(RFC1808_BASE, 'http://#z', 'http://a/b/c/d;p?q#z')
+        self.checkJoin(RFC1808_BASE, 'http://?y', 'http://a/b/c/d;p?y')
+        self.checkJoin(RFC1808_BASE, 'http://;x', 'http://;x')
+        self.checkJoin(RFC1808_BASE, 'http:///w', 'http://a/w')
+        self.checkJoin(RFC1808_BASE, 'http://v', 'http://v')
+        # Different scheme is not ignored.
+        self.checkJoin(RFC1808_BASE, 'https:', 'https:', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'https:#', 'https:#', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'https:#z', 'https:#z', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'https:?', 'https:?', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'https:?y', 'https:?y', relroundtrip=False)
+        self.checkJoin(RFC1808_BASE, 'https:;', 'https:;')
+        self.checkJoin(RFC1808_BASE, 'https:;x', 'https:;x')
+
+    def test_urljoins_relative_base(self):
+        # According to RFC 3986, Section 5.1, a base URI must conform to
+        # the absolute-URI syntax rule (Section 4.3). But urljoin() lacks
+        # a context to establish missed components of the relative base URI.
+        # It still has to return a sensible result for backwards compatibility.
+        # The following tests are figments of the imagination and artifacts
+        # of the current implementation that are not based on any standard.
+        self.checkJoin('', '', '')
+        self.checkJoin('', '//', '//', relroundtrip=False)
+        self.checkJoin('', '//v', '//v')
+        self.checkJoin('', '//v/w', '//v/w')
+        self.checkJoin('', '/w', '/w')
+        self.checkJoin('', '///w', '///w', relroundtrip=False)
+        self.checkJoin('', 'w', 'w')
+
+        self.checkJoin('//', '', '//')
+        self.checkJoin('//', '//', '//')
+        self.checkJoin('//', '//v', '//v')
+        self.checkJoin('//', '//v/w', '//v/w')
+        self.checkJoin('//', '/w', '///w')
+        self.checkJoin('//', '///w', '///w')
+        self.checkJoin('//', 'w', '///w')
+
+        self.checkJoin('//a', '', '//a')
+        self.checkJoin('//a', '//', '//a')
+        self.checkJoin('//a', '//v', '//v')
+        self.checkJoin('//a', '//v/w', '//v/w')
+        self.checkJoin('//a', '/w', '//a/w')
+        self.checkJoin('//a', '///w', '//a/w')
+        self.checkJoin('//a', 'w', '//a/w')
+
+        for scheme in '', 'http:':
+            self.checkJoin('http:', scheme + '', 'http:')
+            self.checkJoin('http:', scheme + '//', 'http:')
+            self.checkJoin('http:', scheme + '//v', 'http://v')
+            self.checkJoin('http:', scheme + '//v/w', 'http://v/w')
+            self.checkJoin('http:', scheme + '/w', 'http:/w')
+            self.checkJoin('http:', scheme + '///w', 'http:/w')
+            self.checkJoin('http:', scheme + 'w', 'http:/w')
+
+            self.checkJoin('http://', scheme + '', 'http://')
+            self.checkJoin('http://', scheme + '//', 'http://')
+            self.checkJoin('http://', scheme + '//v', 'http://v')
+            self.checkJoin('http://', scheme + '//v/w', 'http://v/w')
+            self.checkJoin('http://', scheme + '/w', 'http:///w')
+            self.checkJoin('http://', scheme + '///w', 'http:///w')
+            self.checkJoin('http://', scheme + 'w', 'http:///w')
+
+            self.checkJoin('http://a', scheme + '', 'http://a')
+            self.checkJoin('http://a', scheme + '//', 'http://a')
+            self.checkJoin('http://a', scheme + '//v', 'http://v')
+            self.checkJoin('http://a', scheme + '//v/w', 'http://v/w')
+            self.checkJoin('http://a', scheme + '/w', 'http://a/w')
+            self.checkJoin('http://a', scheme + '///w', 'http://a/w')
+            self.checkJoin('http://a', scheme + 'w', 'http://a/w')
+
+        self.checkJoin('/b/c', '', '/b/c')
+        self.checkJoin('/b/c', '//', '/b/c')
+        self.checkJoin('/b/c', '//v', '//v')
+        self.checkJoin('/b/c', '//v/w', '//v/w')
+        self.checkJoin('/b/c', '/w', '/w')
+        self.checkJoin('/b/c', '///w', '/w')
+        self.checkJoin('/b/c', 'w', '/b/w')
+
+        self.checkJoin('///b/c', '', '///b/c')
+        self.checkJoin('///b/c', '//', '///b/c')
+        self.checkJoin('///b/c', '//v', '//v')
+        self.checkJoin('///b/c', '//v/w', '//v/w')
+        self.checkJoin('///b/c', '/w', '///w')
+        self.checkJoin('///b/c', '///w', '///w')
+        self.checkJoin('///b/c', 'w', '///b/w')
 
     @support.subTests('bytes', (False, True))
     @support.subTests('url,hostname,port', [
@@ -635,6 +750,19 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
             ('http://python.org/p?q', 'http://python.org/p?q', ''),
             (RFC1808_BASE, 'http://a/b/c/d;p?q', 'f'),
             (RFC2396_BASE, 'http://a/b/c/d;p?q', ''),
+            ('http://a/b/c;p?q#f', 'http://a/b/c;p?q', 'f'),
+            ('http://a/b/c;p?q#', 'http://a/b/c;p?q', ''),
+            ('http://a/b/c;p?q', 'http://a/b/c;p?q', ''),
+            ('http://a/b/c;p?#f', 'http://a/b/c;p?', 'f'),
+            ('http://a/b/c;p#f', 'http://a/b/c;p', 'f'),
+            ('http://a/b/c;?q#f', 'http://a/b/c;?q', 'f'),
+            ('http://a/b/c?q#f', 'http://a/b/c?q', 'f'),
+            ('http:///b/c;p?q#f', 'http:///b/c;p?q', 'f'),
+            ('http:b/c;p?q#f', 'http:b/c;p?q', 'f'),
+            ('http:;?q#f', 'http:;?q', 'f'),
+            ('http:?q#f', 'http:?q', 'f'),
+            ('//a/b/c;p?q#f', '//a/b/c;p?q', 'f'),
+            ('://a/b/c;p?q#f', '://a/b/c;p?q', 'f'),
         ])
     def test_urldefrag(self, bytes, url, defrag, frag):
         if bytes:
@@ -1160,8 +1288,16 @@ class UrlParseTestCase(unittest.TestCase, ExtraAssertions):
 
     def test_parse_qsl_false_value(self):
         kwargs = dict(keep_blank_values=True, strict_parsing=True)
-        for x in '', b'', None, 0, 0.0, [], {}, memoryview(b''):
+        for x in '', b'', None, memoryview(b''):
             self.assertEqual(urllib.parse.parse_qsl(x, **kwargs), [])
+            self.assertRaises(ValueError, urllib.parse.parse_qsl, x, separator=1)
+        for x in 0, 0.0, [], {}:
+            with self.assertWarns(DeprecationWarning) as cm:
+                self.assertEqual(urllib.parse.parse_qsl(x, **kwargs), [])
+            self.assertEqual(cm.filename, __file__)
+            with self.assertWarns(DeprecationWarning) as cm:
+                self.assertEqual(urllib.parse.parse_qs(x, **kwargs), {})
+            self.assertEqual(cm.filename, __file__)
             self.assertRaises(ValueError, urllib.parse.parse_qsl, x, separator=1)
 
     def test_parse_qsl_errors(self):
@@ -1543,13 +1679,6 @@ class Utility_Tests(unittest.TestCase):
 
 
 class DeprecationTest(unittest.TestCase):
-
-    def test_Quoter_deprecation(self):
-        with self.assertWarns(DeprecationWarning) as cm:
-            old_class = urllib.parse.Quoter
-            self.assertIs(old_class, urllib.parse._Quoter)
-        self.assertIn('Quoter will be removed', str(cm.warning))
-
     def test_splittype_deprecation(self):
         with self.assertWarns(DeprecationWarning) as cm:
             urllib.parse.splittype('')

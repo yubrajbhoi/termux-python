@@ -13,7 +13,7 @@ import random
 import textwrap
 
 from test import support
-from test.support import script_helper, ALWAYS_EQ, suppress_immortalization
+from test.support import script_helper, ALWAYS_EQ
 from test.support import gc_collect
 from test.support import import_helper
 from test.support import threading_helper
@@ -432,7 +432,7 @@ class ReferencesTestCase(TestBase):
         self.assertEqual(proxy.foo, 2,
                      "proxy does not reflect attribute modification")
         del o.foo
-        self.assertFalse(hasattr(proxy, 'foo'),
+        self.assertNotHasAttr(proxy, 'foo',
                      "proxy does not reflect attribute removal")
 
         proxy.foo = 1
@@ -442,7 +442,7 @@ class ReferencesTestCase(TestBase):
         self.assertEqual(o.foo, 2,
             "object does not reflect attribute modification via proxy")
         del proxy.foo
-        self.assertFalse(hasattr(o, 'foo'),
+        self.assertNotHasAttr(o, 'foo',
                      "object does not reflect attribute removal via proxy")
 
     def test_proxy_deletion(self):
@@ -659,7 +659,6 @@ class ReferencesTestCase(TestBase):
         # deallocation of c2.
         del c2
 
-    @suppress_immortalization()
     def test_callback_in_cycle(self):
         import gc
 
@@ -752,7 +751,6 @@ class ReferencesTestCase(TestBase):
         del c1, c2, C, D
         gc.collect()
 
-    @suppress_immortalization()
     def test_callback_in_cycle_resurrection(self):
         import gc
 
@@ -888,7 +886,6 @@ class ReferencesTestCase(TestBase):
         # No exception should be raised here
         gc.collect()
 
-    @suppress_immortalization()
     def test_classes(self):
         # Check that classes are weakrefable.
         class A(object):
@@ -1111,7 +1108,7 @@ class SubclassableWeakrefTestCase(TestBase):
         self.assertEqual(r.slot1, "abc")
         self.assertEqual(r.slot2, "def")
         self.assertEqual(r.meth(), "abcdef")
-        self.assertFalse(hasattr(r, "__dict__"))
+        self.assertNotHasAttr(r, "__dict__")
 
     def test_subclass_refs_with_cycle(self):
         """Confirm https://bugs.python.org/issue3100 is fixed."""
@@ -2032,6 +2029,7 @@ class MappingTestCase(TestBase):
             raise exc[0]
 
     @threading_helper.requires_working_threading()
+    @support.requires_resource('cpu')
     def test_threaded_weak_key_dict_copy(self):
         # Issue #35615: Weakref keys or values getting GC'ed during dict
         # copying should not result in a crash.
@@ -2045,6 +2043,7 @@ class MappingTestCase(TestBase):
         self.check_threaded_weak_dict_copy(weakref.WeakKeyDictionary, True)
 
     @threading_helper.requires_working_threading()
+    @support.requires_resource('cpu')
     def test_threaded_weak_value_dict_copy(self):
         # Issue #35615: Weakref keys or values getting GC'ed during dict
         # copying should not result in a crash.

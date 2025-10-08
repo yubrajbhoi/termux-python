@@ -131,8 +131,8 @@ any DWARF information available for them).
 
 #include "Python.h"
 #include "pycore_ceval.h"         // _PyPerf_Callbacks
-#include "pycore_frame.h"
-#include "pycore_interp.h"
+#include "pycore_interpframe.h"   // _PyFrame_GetCode()
+#include "pycore_runtime.h"       // _PyRuntime
 
 
 #ifdef PY_HAVE_PERF_TRAMPOLINE
@@ -162,6 +162,8 @@ static void invalidate_icache(char* begin, char*end) {
 }
 #endif
 
+#define CODE_ALIGNMENT 32
+
 /* The function pointer is passed as last argument. The other three arguments
  * are passed in the same order as the function requires. This results in
  * shorter, more efficient ASM code for trampoline.
@@ -185,8 +187,6 @@ struct code_arena_st {
     struct code_arena_st
         *prev;  // Pointer to the arena  or NULL if this is the first arena.
 };
-
-#define CODE_ALIGNMENT 32
 
 typedef struct code_arena_st code_arena_t;
 typedef struct trampoline_api_st trampoline_api_t;
@@ -490,11 +490,11 @@ _PyPerfTrampoline_Init(int activate)
         return -1;
     }
     if (!activate) {
-        tstate->interp->eval_frame = NULL;
+        _PyInterpreterState_SetEvalFrameFunc(tstate->interp, NULL);
         perf_status = PERF_STATUS_NO_INIT;
     }
     else {
-        tstate->interp->eval_frame = py_trampoline_evaluator;
+        _PyInterpreterState_SetEvalFrameFunc(tstate->interp, py_trampoline_evaluator);
         extra_code_index = _PyEval_RequestCodeExtraIndex(NULL);
         if (extra_code_index == -1) {
             return -1;
@@ -520,7 +520,7 @@ _PyPerfTrampoline_Fini(void)
     }
     PyThreadState *tstate = _PyThreadState_GET();
     if (tstate->interp->eval_frame == py_trampoline_evaluator) {
-        tstate->interp->eval_frame = NULL;
+        _PyInterpreterState_SetEvalFrameFunc(tstate->interp, NULL);
     }
     if (perf_status == PERF_STATUS_OK) {
         trampoline_api.free_state(trampoline_api.state);

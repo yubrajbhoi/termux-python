@@ -4,6 +4,7 @@ Tests of regrtest.py.
 Note: test_regrtest cannot be run twice in parallel.
 """
 
+import _colorize
 import contextlib
 import dataclasses
 import glob
@@ -21,10 +22,12 @@ import sysconfig
 import tempfile
 import textwrap
 import unittest
+import unittest.mock
 from xml.etree import ElementTree
 
 from test import support
-from test.support import os_helper, without_optimizer
+from test.support import import_helper
+from test.support import os_helper
 from test.libregrtest import cmdline
 from test.libregrtest import main
 from test.libregrtest import setup
@@ -179,12 +182,32 @@ class ParseArgsTestCase(unittest.TestCase):
             self.assertTrue(regrtest.randomize)
             self.assertIsInstance(regrtest.random_seed, int)
 
+    def test_no_randomize(self):
+        ns = self.parse_args([])
+        self.assertIs(ns.randomize, False)
+
+        ns = self.parse_args(["--randomize"])
+        self.assertIs(ns.randomize, True)
+
+        ns = self.parse_args(["--no-randomize"])
+        self.assertIs(ns.randomize, False)
+
+        ns = self.parse_args(["--randomize", "--no-randomize"])
+        self.assertIs(ns.randomize, False)
+
+        ns = self.parse_args(["--no-randomize", "--randomize"])
+        self.assertIs(ns.randomize, False)
+
     def test_randseed(self):
         ns = self.parse_args(['--randseed', '12345'])
         self.assertEqual(ns.random_seed, 12345)
         self.assertTrue(ns.randomize)
         self.checkError(['--randseed'], 'expected one argument')
         self.checkError(['--randseed', 'foo'], 'invalid int value')
+
+        ns = self.parse_args(['--randseed', '12345', '--no-randomize'])
+        self.assertEqual(ns.random_seed, 12345)
+        self.assertFalse(ns.randomize)
 
     def test_fromfile(self):
         for opt in '-f', '--fromfile':
@@ -425,11 +448,12 @@ class ParseArgsTestCase(unittest.TestCase):
 
         return regrtest
 
-    def check_ci_mode(self, args, use_resources, rerun=True):
+    def check_ci_mode(self, args, use_resources, *, rerun=True, randomize=True):
         regrtest = self.create_regrtest(args)
         self.assertEqual(regrtest.num_workers, -1)
         self.assertEqual(regrtest.want_rerun, rerun)
-        self.assertTrue(regrtest.randomize)
+        self.assertEqual(regrtest.fail_rerun, False)
+        self.assertEqual(regrtest.randomize, randomize)
         self.assertIsInstance(regrtest.random_seed, int)
         self.assertTrue(regrtest.fail_env_changed)
         self.assertTrue(regrtest.print_slowest)
@@ -465,6 +489,15 @@ class ParseArgsTestCase(unittest.TestCase):
         use_resources = sorted(cmdline.ALL_RESOURCES)
         regrtest = self.check_ci_mode(args, use_resources)
         self.assertEqual(regrtest.timeout, 20 * 60)
+
+    def test_ci_no_randomize(self):
+        all_resources = set(cmdline.ALL_RESOURCES)
+        self.check_ci_mode(
+            ["--slow-ci", "--no-randomize"], all_resources, randomize=False
+        )
+        self.check_ci_mode(
+            ["--fast-ci", "--no-randomize"], all_resources - {'cpu'}, randomize=False
+        )
 
     def test_dont_add_python_opts(self):
         args = ['--dont-add-python-opts']
@@ -1155,7 +1188,7 @@ class ArgsTestCase(BaseTestCase):
         output = self.run_tests("--coverage", test)
         self.check_executed_tests(output, [test], stats=1)
         regex = (r'lines +cov% +module +\(path\)\n'
-                 r'(?: *[0-9]+ *[0-9]{1,2}% *[^ ]+ +\([^)]+\)+)+')
+                 r'(?: *[0-9]+ *[0-9]{1,2}\.[0-9]% *[^ ]+ +\([^)]+\)+)+')
         self.check_line(output, regex)
 
     def test_wait(self):
@@ -1198,7 +1231,7 @@ class ArgsTestCase(BaseTestCase):
                                   stats=TestStats(4, 1),
                                   forever=True)
 
-    @without_optimizer
+    @support.requires_jit_disabled
     def check_leak(self, code, what, *, run_workers=False):
         test = self.create_test('huntrleaks', code=code)
 
@@ -1766,10 +1799,9 @@ class ArgsTestCase(BaseTestCase):
 
     @support.cpython_only
     def test_uncollectable(self):
-        try:
-            import _testcapi
-        except ImportError:
-            raise unittest.SkipTest("requires _testcapi")
+        # Skip test if _testcapi is missing
+        import_helper.import_module('_testcapi')
+
         code = textwrap.dedent(r"""
             import _testcapi
             import gc
@@ -2152,34 +2184,34 @@ class ArgsTestCase(BaseTestCase):
 
     def check_add_python_opts(self, option):
         # --fast-ci and --slow-ci add "-u -W default -bb -E" options to Python
-        try:
-            import _testinternalcapi
-        except ImportError:
-            raise unittest.SkipTest("requires _testinternalcapi")
+
+        # Skip test if _testinternalcapi is missing
+        import_helper.import_module('_testinternalcapi')
+
         code = textwrap.dedent(r"""
             import sys
             import unittest
             from test import support
             try:
-                from _testinternalcapi import get_config
+                from _testcapi import config_get
             except ImportError:
-                get_config = None
+                config_get = None
 
             # WASI/WASM buildbots don't use -E option
             use_environment = (support.is_emscripten or support.is_wasi)
 
             class WorkerTests(unittest.TestCase):
-                @unittest.skipUnless(get_config is None, 'need get_config()')
+                @unittest.skipUnless(config_get is None, 'need config_get()')
                 def test_config(self):
-                    config = get_config()['config']
+                    config = config_get()
                     # -u option
-                    self.assertEqual(config['buffered_stdio'], 0)
+                    self.assertEqual(config_get('buffered_stdio'), 0)
                     # -W default option
-                    self.assertTrue(config['warnoptions'], ['default'])
+                    self.assertTrue(config_get('warnoptions'), ['default'])
                     # -bb option
-                    self.assertTrue(config['bytes_warning'], 2)
+                    self.assertTrue(config_get('bytes_warning'), 2)
                     # -E option
-                    self.assertTrue(config['use_environment'], use_environment)
+                    self.assertTrue(config_get('use_environment'), use_environment)
 
                 def test_python_opts(self):
                     # -u option
@@ -2218,10 +2250,8 @@ class ArgsTestCase(BaseTestCase):
     @unittest.skipIf(support.is_android,
                      'raising SIGSEGV on Android is unreliable')
     def test_worker_output_on_failure(self):
-        try:
-            from faulthandler import _sigsegv
-        except ImportError:
-            self.skipTest("need faulthandler._sigsegv")
+        # Skip test if faulthandler is missing
+        import_helper.import_module('faulthandler')
 
         code = textwrap.dedent(r"""
             import faulthandler
@@ -2392,16 +2422,6 @@ class TestUtils(unittest.TestCase):
         self.assertIsNone(normalize('setUpModule (test.test_x)', is_error=True))
         self.assertIsNone(normalize('tearDownModule (test.test_module)', is_error=True))
 
-    def test_get_signal_name(self):
-        for exitcode, expected in (
-            (-int(signal.SIGINT), 'SIGINT'),
-            (-int(signal.SIGSEGV), 'SIGSEGV'),
-            (128 + int(signal.SIGABRT), 'SIGABRT'),
-            (3221225477, "STATUS_ACCESS_VIOLATION"),
-            (0xC00000FD, "STATUS_STACK_OVERFLOW"),
-        ):
-            self.assertEqual(utils.get_signal_name(exitcode), expected, exitcode)
-
     def test_format_resources(self):
         format_resources = utils.format_resources
         ALL_RESOURCES = utils.ALL_RESOURCES
@@ -2560,5 +2580,50 @@ class TestUtils(unittest.TestCase):
                          'valid t\xe9xt \u20ac')
 
 
+from test.libregrtest.results import TestResults
+
+
+class TestColorized(unittest.TestCase):
+    def test_test_result_get_state(self):
+        # Arrange
+        green = _colorize.ANSIColors.GREEN
+        red = _colorize.ANSIColors.BOLD_RED
+        reset = _colorize.ANSIColors.RESET
+        yellow = _colorize.ANSIColors.YELLOW
+
+        good_results = TestResults()
+        good_results.good = ["good1", "good2"]
+        bad_results = TestResults()
+        bad_results.bad = ["bad1", "bad2"]
+        no_results = TestResults()
+        no_results.bad = []
+        interrupted_results = TestResults()
+        interrupted_results.interrupted = True
+        interrupted_worker_bug = TestResults()
+        interrupted_worker_bug.interrupted = True
+        interrupted_worker_bug.worker_bug = True
+
+        for results, expected in (
+            (good_results, f"{green}SUCCESS{reset}"),
+            (bad_results, f"{red}FAILURE{reset}"),
+            (no_results, f"{yellow}NO TESTS RAN{reset}"),
+            (interrupted_results, f"{yellow}INTERRUPTED{reset}"),
+            (
+                interrupted_worker_bug,
+                f"{yellow}INTERRUPTED{reset}, {red}WORKER BUG{reset}",
+            ),
+        ):
+            with self.subTest(results=results, expected=expected):
+                # Act
+                with unittest.mock.patch(
+                    "_colorize.can_colorize", return_value=True
+                ):
+                    result = results.get_state(fail_env_changed=False)
+
+                # Assert
+                self.assertEqual(result, expected)
+
+
 if __name__ == '__main__':
+    setup.setup_process()
     unittest.main()

@@ -21,13 +21,13 @@ static PyObject *
 MD5Type_copy_impl(MD5object *self, PyTypeObject *cls);
 
 static PyObject *
-MD5Type_copy(MD5object *self, PyTypeObject *cls, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
+MD5Type_copy(PyObject *self, PyTypeObject *cls, PyObject *const *args, Py_ssize_t nargs, PyObject *kwnames)
 {
     if (nargs || (kwnames && PyTuple_GET_SIZE(kwnames))) {
         PyErr_SetString(PyExc_TypeError, "copy() takes no arguments");
         return NULL;
     }
-    return MD5Type_copy_impl(self, cls);
+    return MD5Type_copy_impl((MD5object *)self, cls);
 }
 
 PyDoc_STRVAR(MD5Type_digest__doc__,
@@ -43,9 +43,9 @@ static PyObject *
 MD5Type_digest_impl(MD5object *self);
 
 static PyObject *
-MD5Type_digest(MD5object *self, PyObject *Py_UNUSED(ignored))
+MD5Type_digest(PyObject *self, PyObject *Py_UNUSED(ignored))
 {
-    return MD5Type_digest_impl(self);
+    return MD5Type_digest_impl((MD5object *)self);
 }
 
 PyDoc_STRVAR(MD5Type_hexdigest__doc__,
@@ -61,9 +61,9 @@ static PyObject *
 MD5Type_hexdigest_impl(MD5object *self);
 
 static PyObject *
-MD5Type_hexdigest(MD5object *self, PyObject *Py_UNUSED(ignored))
+MD5Type_hexdigest(PyObject *self, PyObject *Py_UNUSED(ignored))
 {
-    return MD5Type_hexdigest_impl(self);
+    return MD5Type_hexdigest_impl((MD5object *)self);
 }
 
 PyDoc_STRVAR(MD5Type_update__doc__,
@@ -74,6 +74,19 @@ PyDoc_STRVAR(MD5Type_update__doc__,
 
 #define MD5TYPE_UPDATE_METHODDEF    \
     {"update", (PyCFunction)MD5Type_update, METH_O, MD5Type_update__doc__},
+
+static PyObject *
+MD5Type_update_impl(MD5object *self, PyObject *obj);
+
+static PyObject *
+MD5Type_update(PyObject *self, PyObject *obj)
+{
+    PyObject *return_value = NULL;
+
+    return_value = MD5Type_update_impl((MD5object *)self, obj);
+
+    return return_value;
+}
 
 PyDoc_STRVAR(_md5_md5__doc__,
 "md5($module, /, data=b\'\', *, usedforsecurity=True, string=None)\n"
@@ -98,9 +111,11 @@ _md5_md5(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kw
     static struct {
         PyGC_Head _this_is_not_used;
         PyObject_VAR_HEAD
+        Py_hash_t ob_hash;
         PyObject *ob_item[NUM_KEYWORDS];
     } _kwtuple = {
         .ob_base = PyVarObject_HEAD_INIT(&PyTuple_Type, NUM_KEYWORDS)
+        .ob_hash = -1,
         .ob_item = { &_Py_ID(data), &_Py_ID(usedforsecurity), &_Py_ID(string), },
     };
     #undef NUM_KEYWORDS
@@ -123,7 +138,8 @@ _md5_md5(PyObject *module, PyObject *const *args, Py_ssize_t nargs, PyObject *kw
     int usedforsecurity = 1;
     PyObject *string_obj = NULL;
 
-    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser, 0, 1, 0, argsbuf);
+    args = _PyArg_UnpackKeywords(args, nargs, NULL, kwnames, &_parser,
+            /*minpos*/ 0, /*maxpos*/ 1, /*minkw*/ 0, /*varpos*/ 0, argsbuf);
     if (!args) {
         goto exit;
     }
@@ -156,4 +172,4 @@ skip_optional_kwonly:
 exit:
     return return_value;
 }
-/*[clinic end generated code: output=3a2880d9fb5801cd input=a9049054013a1b77]*/
+/*[clinic end generated code: output=920fe54b9ed06f92 input=a9049054013a1b77]*/

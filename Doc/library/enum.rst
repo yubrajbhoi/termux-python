@@ -315,6 +315,7 @@ Data Types
       Returns ``['__class__', '__doc__', '__module__', 'name', 'value']`` and
       any public methods defined on *self.__class__*::
 
+         >>> from enum import Enum
          >>> from datetime import date
          >>> class Weekday(Enum):
          ...     MONDAY = 1
@@ -341,7 +342,7 @@ Data Types
       A *staticmethod* that is used to determine the next value returned by
       :class:`auto`::
 
-         >>> from enum import auto
+         >>> from enum import auto, Enum
          >>> class PowersOfThree(Enum):
          ...     @staticmethod
          ...     def _generate_next_value_(name, start, count, last_values):
@@ -373,7 +374,7 @@ Data Types
       A *classmethod* for looking up values not found in *cls*.  By default it
       does nothing, but can be overridden to implement custom search behavior::
 
-         >>> from enum import StrEnum
+         >>> from enum import auto, StrEnum
          >>> class Build(StrEnum):
          ...     DEBUG = auto()
          ...     OPTIMIZED = auto()
@@ -412,6 +413,7 @@ Data Types
       Returns the string used for *repr()* calls.  By default, returns the
       *Enum* name, member name, and value, but can be overridden::
 
+         >>> from enum import auto, Enum
          >>> class OtherStyle(Enum):
          ...     ALTERNATE = auto()
          ...     OTHER = auto()
@@ -428,6 +430,7 @@ Data Types
       Returns the string used for *str()* calls.  By default, returns the
       *Enum* name and member name, but can be overridden::
 
+         >>> from enum import auto, Enum
          >>> class OtherStyle(Enum):
          ...     ALTERNATE = auto()
          ...     OTHER = auto()
@@ -443,6 +446,7 @@ Data Types
       Returns the string used for *format()* and *f-string* calls.  By default,
       returns :meth:`__str__` return value, but can be overridden::
 
+         >>> from enum import auto, Enum
          >>> class OtherStyle(Enum):
          ...     ALTERNATE = auto()
          ...     OTHER = auto()
@@ -665,7 +669,7 @@ Data Types
       of two, starting with ``1``.
 
    .. versionchanged:: 3.11 The *repr()* of zero-valued flags has changed.  It
-      is now::
+      is now:
 
          >>> Color(0) # doctest: +SKIP
          <Color: 0>
@@ -697,7 +701,7 @@ Data Types
    * the result is a valid *IntFlag*: an *IntFlag* is returned
    * the result is not a valid *IntFlag*: the result depends on the :class:`FlagBoundary` setting
 
-   The :func:`repr` of unnamed zero-valued flags has changed.  It is now:
+   The :func:`repr` of unnamed zero-valued flags has changed.  It is now::
 
       >>> Color(0)
       <Color: 0>
@@ -1021,6 +1025,7 @@ Utilities and Decorators
    Should only be used when the enum members are exported
    to the module global namespace (see :class:`re.RegexFlag` for an example).
 
+
    .. versionadded:: 3.11
 
 .. function:: show_flag_values(value)
@@ -1028,7 +1033,6 @@ Utilities and Decorators
    Return a list of all power-of-two integers contained in a flag *value*.
 
    .. versionadded:: 3.11
-
 
 ---------------
 

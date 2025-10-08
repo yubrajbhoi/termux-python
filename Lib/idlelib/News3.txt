@@ -1,6 +1,6 @@
-What's New in IDLE 3.13.z
+What's New in IDLE 3.14.0
 (since 3.13.0)
-Released after 2024-10-07
+Released on 2025-10-07
 =========================
 
 

@@ -29,7 +29,7 @@ class CustomError(Exception):
 
 
 def tearDownModule():
-    asyncio.set_event_loop_policy(None)
+    asyncio.events._set_event_loop_policy(None)
 
 
 def mock_socket_module():
@@ -1409,7 +1409,7 @@ class BaseEventLoopWithSelectorTests(test_utils.TestCase):
         with self.assertRaises(OSError) as cm:
             self.loop.run_until_complete(coro)
 
-        self.assertTrue(str(cm.exception).startswith('Multiple exceptions: '))
+        self.assertStartsWith(str(cm.exception), 'Multiple exceptions: ')
         self.assertTrue(m_socket.socket.return_value.close.called)
 
         coro = self.loop.create_connection(

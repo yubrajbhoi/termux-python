@@ -21,10 +21,16 @@ class TestFunctions(unittest.TestCase):
         tmp = self.enterContext(tempfile.TemporaryFile(mode='wb', buffering=0))
         self.bad_fd = tmp.fileno()
 
-    def assertRaisesTermiosError(self, errno, callable, *args):
+    def assertRaisesTermiosError(self, err, callable, *args):
+        # Some versions of Android return EACCES when calling termios functions
+        # on a regular file.
+        errs = [err]
+        if sys.platform == 'android' and err == errno.ENOTTY:
+            errs.append(errno.EACCES)
+
         with self.assertRaises(termios.error) as cm:
             callable(*args)
-        self.assertEqual(cm.exception.args[0], errno)
+        self.assertIn(cm.exception.args[0], errs)
 
     def test_tcgetattr(self):
         attrs = termios.tcgetattr(self.fd)
@@ -93,6 +99,7 @@ class TestFunctions(unittest.TestCase):
         self.assertRaises(TypeError, termios.tcsetattr, object(), termios.TCSANOW, attrs)
         self.assertRaises(TypeError, termios.tcsetattr, self.fd, termios.TCSANOW)
 
+    @support.skip_android_selinux('tcsendbreak')
     def test_tcsendbreak(self):
         try:
             termios.tcsendbreak(self.fd, 1)
@@ -103,6 +110,7 @@ class TestFunctions(unittest.TestCase):
             raise
         termios.tcsendbreak(self.stream, 1)
 
+    @support.skip_android_selinux('tcsendbreak')
     def test_tcsendbreak_errors(self):
         self.assertRaises(OverflowError, termios.tcsendbreak, self.fd, 2**1000)
         self.assertRaises(TypeError, termios.tcsendbreak, self.fd, 0.0)
@@ -113,10 +121,12 @@ class TestFunctions(unittest.TestCase):
         self.assertRaises(TypeError, termios.tcsendbreak, object(), 0)
         self.assertRaises(TypeError, termios.tcsendbreak, self.fd)
 
+    @support.skip_android_selinux('tcdrain')
     def test_tcdrain(self):
         termios.tcdrain(self.fd)
         termios.tcdrain(self.stream)
 
+    @support.skip_android_selinux('tcdrain')
     def test_tcdrain_errors(self):
         self.assertRaisesTermiosError(errno.ENOTTY, termios.tcdrain, self.bad_fd)
         self.assertRaises(ValueError, termios.tcdrain, -1)
@@ -164,12 +174,14 @@ class TestFunctions(unittest.TestCase):
         os.write(wfd, b'ABCDEF')
         self.assertEqual(os.read(rfd, 1024), b'ABCDEF')
 
+    @support.skip_android_selinux('tcflow')
     def test_tcflow(self):
         termios.tcflow(self.fd, termios.TCOOFF)
         termios.tcflow(self.fd, termios.TCOON)
         termios.tcflow(self.fd, termios.TCIOFF)
         termios.tcflow(self.fd, termios.TCION)
 
+    @support.skip_android_selinux('tcflow')
     def test_tcflow_errors(self):
         self.assertRaisesTermiosError(errno.EINVAL, termios.tcflow, self.fd, -1)
         self.assertRaises(OverflowError, termios.tcflow, self.fd, 2**1000)
@@ -180,7 +192,8 @@ class TestFunctions(unittest.TestCase):
         self.assertRaises(TypeError, termios.tcflow, object(), termios.TCOON)
         self.assertRaises(TypeError, termios.tcflow, self.fd)
 
-    @unittest.skipUnless(sys.platform == 'linux', 'only works on Linux')
+    @support.skip_android_selinux('tcflow')
+    @unittest.skipUnless(sys.platform in ('linux', 'android'), 'only works on Linux')
     def test_tcflow_suspend_and_resume_output(self):
         wfd = self.fd
         rfd = self.master_fd
@@ -267,9 +280,18 @@ class TestModule(unittest.TestCase):
         self.assertLess(termios.VTIME, termios.NCCS)
         self.assertLess(termios.VMIN, termios.NCCS)
 
+    def test_ioctl_constants(self):
+        # gh-119770: ioctl() constants must be positive
+        for name in dir(termios):
+            if not name.startswith('TIO'):
+                continue
+            value = getattr(termios, name)
+            with self.subTest(name=name):
+                self.assertGreaterEqual(value, 0)
+
     def test_exception(self):
-        self.assertTrue(issubclass(termios.error, Exception))
-        self.assertFalse(issubclass(termios.error, OSError))
+        self.assertIsSubclass(termios.error, Exception)
+        self.assertNotIsSubclass(termios.error, OSError)
 
 
 if __name__ == '__main__':

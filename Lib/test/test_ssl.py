@@ -85,21 +85,8 @@ BYTES_CAPATH = os.fsencode(CAPATH)
 CAFILE_NEURONIO = data_file("capath", "4e1295a3.0")
 CAFILE_CACERT = data_file("capath", "5ed36f99.0")
 
-CERTFILE_INFO = {
-    'issuer': ((('countryName', 'XY'),),
-               (('localityName', 'Castle Anthrax'),),
-               (('organizationName', 'Python Software Foundation'),),
-               (('commonName', 'localhost'),)),
-    'notAfter': 'Jan 24 04:21:36 2043 GMT',
-    'notBefore': 'Nov 25 04:21:36 2023 GMT',
-    'serialNumber': '53E14833F7546C29256DD0F034F776C5E983004C',
-    'subject': ((('countryName', 'XY'),),
-             (('localityName', 'Castle Anthrax'),),
-             (('organizationName', 'Python Software Foundation'),),
-             (('commonName', 'localhost'),)),
-    'subjectAltName': (('DNS', 'localhost'),),
-    'version': 3
-}
+with open(data_file('keycert.pem.reference')) as file:
+    CERTFILE_INFO = literal_eval(file.read())
 
 # empty CRL
 CRLFILE = data_file("revocation.crl")
@@ -109,23 +96,8 @@ SIGNED_CERTFILE = data_file("keycert3.pem")
 SINGED_CERTFILE_ONLY = data_file("cert3.pem")
 SIGNED_CERTFILE_HOSTNAME = 'localhost'
 
-SIGNED_CERTFILE_INFO = {
-    'OCSP': ('http://testca.pythontest.net/testca/ocsp/',),
-    'caIssuers': ('http://testca.pythontest.net/testca/pycacert.cer',),
-    'crlDistributionPoints': ('http://testca.pythontest.net/testca/revocation.crl',),
-    'issuer': ((('countryName', 'XY'),),
-            (('organizationName', 'Python Software Foundation CA'),),
-            (('commonName', 'our-ca-server'),)),
-    'notAfter': 'Oct 28 14:23:16 2037 GMT',
-    'notBefore': 'Aug 29 14:23:16 2018 GMT',
-    'serialNumber': 'CB2D80995A69525C',
-    'subject': ((('countryName', 'XY'),),
-             (('localityName', 'Castle Anthrax'),),
-             (('organizationName', 'Python Software Foundation'),),
-             (('commonName', 'localhost'),)),
-    'subjectAltName': (('DNS', 'localhost'),),
-    'version': 3
-}
+with open(data_file('keycert3.pem.reference')) as file:
+    SIGNED_CERTFILE_INFO = literal_eval(file.read())
 
 SIGNED_CERTFILE2 = data_file("keycert4.pem")
 SIGNED_CERTFILE2_HOSTNAME = 'fakehostname'
@@ -180,7 +152,7 @@ def is_ubuntu():
 
 if is_ubuntu():
     def seclevel_workaround(*ctxs):
-        """"Lower security level to '1' and allow all ciphers for TLS 1.0/1"""
+        """Lower security level to '1' and allow all ciphers for TLS 1.0/1"""
         for ctx in ctxs:
             if (
                 hasattr(ctx, "minimum_version") and
@@ -426,6 +398,7 @@ class BasicSocketTests(unittest.TestCase):
         ssl.RAND_add(bytearray(b"this is a random bytearray object"), 75.0)
 
     def test_parse_cert(self):
+        self.maxDiff = None
         # note that this uses an 'unofficial' function in _ssl.c,
         # provided solely for this test, to exercise the certificate
         # parsing code
@@ -567,9 +540,9 @@ class BasicSocketTests(unittest.TestCase):
             openssl_ver = f"OpenSSL {major:d}.{minor:d}.{patch:d}"
         else:
             openssl_ver = f"OpenSSL {major:d}.{minor:d}.{fix:d}"
-        self.assertTrue(
-            s.startswith((openssl_ver, libressl_ver, "AWS-LC")),
-            (s, t, hex(n))
+        self.assertStartsWith(
+            s, (openssl_ver, libressl_ver, "AWS-LC"),
+            (t, hex(n))
         )
 
     @support.cpython_only
@@ -1014,7 +987,7 @@ class ContextTests(unittest.TestCase):
         self.assertEqual(0, ctx.options & ~ssl.OP_NO_SSLv3)
 
         # invalid options
-        with self.assertRaises(OverflowError):
+        with self.assertRaises(ValueError):
             ctx.options = -1
         with self.assertRaises(OverflowError):
             ctx.options = 2 ** 100
@@ -1266,25 +1239,6 @@ class ContextTests(unittest.TestCase):
         # Make sure the password function isn't called if it isn't needed
         ctx.load_cert_chain(CERTFILE, password=getpass_exception)
 
-    @threading_helper.requires_working_threading()
-    def test_load_cert_chain_thread_safety(self):
-        # gh-134698: _ssl detaches the thread state (and as such,
-        # releases the GIL and critical sections) around expensive
-        # OpenSSL calls. Unfortunately, OpenSSL structures aren't
-        # thread-safe, so executing these calls concurrently led
-        # to crashes.
-        ctx = ssl.create_default_context()
-
-        def race():
-            ctx.load_cert_chain(CERTFILE)
-
-        threads = [threading.Thread(target=race) for _ in range(8)]
-        with threading_helper.catch_threading_exception() as cm:
-            with threading_helper.start_threads(threads):
-                pass
-
-            self.assertIsNone(cm.exc_value)
-
     def test_load_verify_locations(self):
         ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         ctx.load_verify_locations(CERTFILE)
@@ -1377,8 +1331,7 @@ class ContextTests(unittest.TestCase):
             if Py_DEBUG_WIN32:
                 self.skipTest("not supported on Win32 debug build")
             raise
-        if os.name != 'nt':
-            ctx.load_dh_params(BYTES_DHFILE)
+        ctx.load_dh_params(BYTES_DHFILE)
         self.assertRaises(TypeError, ctx.load_dh_params)
         self.assertRaises(TypeError, ctx.load_dh_params, None)
         with self.assertRaises(FileNotFoundError) as cm:
@@ -1716,7 +1669,7 @@ class SSLErrorTests(unittest.TestCase):
         regex = "(NO_START_LINE|UNSUPPORTED_PUBLIC_KEY_TYPE)"
         self.assertRegex(cm.exception.reason, regex)
         s = str(cm.exception)
-        self.assertTrue("NO_START_LINE" in s, s)
+        self.assertIn("NO_START_LINE", s)
 
     def test_subclass(self):
         # Check that the appropriate SSLError subclass is raised
@@ -1731,7 +1684,7 @@ class SSLErrorTests(unittest.TestCase):
                 with self.assertRaises(ssl.SSLWantReadError) as cm:
                     c.do_handshake()
                 s = str(cm.exception)
-                self.assertTrue(s.startswith("The operation did not complete (read)"), s)
+                self.assertStartsWith(s, "The operation did not complete (read)")
                 # For compatibility
                 self.assertEqual(cm.exception.errno, ssl.SSL_ERROR_WANT_READ)
 
@@ -2891,6 +2844,7 @@ class ThreadedTests(unittest.TestCase):
         # See GH-124984: OpenSSL is not thread safe.
         threads = []
 
+        warnings_filters = sys.flags.context_aware_warnings
         global USE_SAME_TEST_CONTEXT
         USE_SAME_TEST_CONTEXT = True
         try:
@@ -2901,7 +2855,7 @@ class ThreadedTests(unittest.TestCase):
                 self.test_crl_check,
                 functools.partial(
                     self.test_check_hostname_idn,
-                    warnings_filters=False,  # gh-126483
+                    warnings_filters=warnings_filters,
                 ),
                 self.test_wrong_cert_tls12,
                 self.test_wrong_cert_tls13,
@@ -4584,44 +4538,9 @@ class ThreadedTests(unittest.TestCase):
             with client_context.wrap_socket(socket.socket()) as s:
                 s.connect((HOST, server.port))
 
-    def test_thread_recv_while_main_thread_sends(self):
-        # GH-137583: Locking was added to calls to send() and recv() on SSL
-        # socket objects. This seemed fine at the surface level because those
-        # calls weren't re-entrant, but recv() calls would implicitly mimick
-        # holding a lock by blocking until it received data. This means that
-        # if a thread started to infinitely block until data was received, calls
-        # to send() would deadlock, because it would wait forever on the lock
-        # that the recv() call held.
-        data = b"1" * 1024
-        event = threading.Event()
-        def background(sock):
-            event.set()
-            received = sock.recv(len(data))
-            self.assertEqual(received, data)
 
-        client_context, server_context, hostname = testing_context()
-        server = ThreadedEchoServer(context=server_context)
-        with server:
-            with client_context.wrap_socket(socket.socket(),
-                                            server_hostname=hostname) as sock:
-                sock.connect((HOST, server.port))
-                sock.settimeout(1)
-                sock.setblocking(1)
-                # Ensure that the server is ready to accept requests
-                sock.sendall(b"123")
-                self.assertEqual(sock.recv(3), b"123")
-                with threading_helper.catch_threading_exception() as cm:
-                    thread = threading.Thread(target=background,
-                                              args=(sock,), daemon=True)
-                    thread.start()
-                    event.wait()
-                    sock.sendall(data)
-                    thread.join()
-                    if cm.exc_value is not None:
-                        raise cm.exc_value
-
-
-@unittest.skipUnless(has_tls_version('TLSv1_3'), "Test needs TLS 1.3")
+@unittest.skipUnless(has_tls_version('TLSv1_3') and ssl.HAS_PHA,
+                     "Test needs TLS 1.3 PHA")
 class TestPostHandshakeAuth(unittest.TestCase):
     def test_pha_setter(self):
         protocols = [

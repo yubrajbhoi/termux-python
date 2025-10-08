@@ -1,7 +1,6 @@
 #ifndef _PY_LEXER_H_
 #define _PY_LEXER_H_
 
-#include "Python.h"
 #include "object.h"
 
 #define MAXINDENT 100       /* Max indentation level */
@@ -37,6 +36,11 @@ enum tokenizer_mode_kind_t {
     TOK_FSTRING_MODE,
 };
 
+enum string_kind_t {
+    FSTRING,
+    TSTRING,
+};
+
 #define MAX_EXPR_NESTING 3
 
 typedef struct _tokenizer_mode {
@@ -45,21 +49,23 @@ typedef struct _tokenizer_mode {
     int curly_bracket_depth;
     int curly_bracket_expr_start_depth;
 
-    char f_string_quote;
-    int f_string_quote_size;
-    int f_string_raw;
-    const char* f_string_start;
-    const char* f_string_multi_line_start;
-    int f_string_line_start;
+    char quote;
+    int quote_size;
+    int raw;
+    const char* start;
+    const char* multi_line_start;
+    int first_line;
 
-    Py_ssize_t f_string_start_offset;
-    Py_ssize_t f_string_multi_line_start_offset;
+    Py_ssize_t start_offset;
+    Py_ssize_t multi_line_start_offset;
 
     Py_ssize_t last_expr_size;
     Py_ssize_t last_expr_end;
     char* last_expr_buffer;
-    int f_string_debug;
+    int in_debug;
     int in_format_spec;
+
+    enum string_kind_t string_kind;
 } tokenizer_mode;
 
 /* Tokenizer state */
@@ -139,20 +145,5 @@ void _PyTokenizer_Free(struct tok_state *);
 void _PyToken_Free(struct token *);
 void _PyToken_Init(struct token *);
 
-#ifdef Py_DEBUG
-static inline tokenizer_mode* TOK_GET_MODE(struct tok_state* tok) {
-    assert(tok->tok_mode_stack_index >= 0);
-    assert(tok->tok_mode_stack_index < MAXFSTRINGLEVEL);
-    return &(tok->tok_mode_stack[tok->tok_mode_stack_index]);
-}
-static inline tokenizer_mode* TOK_NEXT_MODE(struct tok_state* tok) {
-    assert(tok->tok_mode_stack_index >= 0);
-    assert(tok->tok_mode_stack_index + 1 < MAXFSTRINGLEVEL);
-    return &(tok->tok_mode_stack[++tok->tok_mode_stack_index]);
-}
-#else
-#define TOK_GET_MODE(tok) (&(tok->tok_mode_stack[tok->tok_mode_stack_index]))
-#define TOK_NEXT_MODE(tok) (&(tok->tok_mode_stack[++tok->tok_mode_stack_index]))
-#endif
 
 #endif

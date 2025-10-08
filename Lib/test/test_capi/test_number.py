@@ -1,10 +1,9 @@
 import itertools
 import operator
-import sys
 import unittest
 import warnings
 
-from test.support import cpython_only, import_helper
+from test.support import import_helper
 
 _testcapi = import_helper.import_module('_testcapi')
 from _testcapi import PY_SSIZE_T_MAX, PY_SSIZE_T_MIN
@@ -238,9 +237,8 @@ class CAPITest(unittest.TestCase):
         x = X()
         self.assertEqual(power(4, x), (x, 4))
         self.assertEqual(inplacepower(4, x), (x, 4))
-        # XXX: Three-arg power doesn't use __rpow__.
-        self.assertRaises(TypeError, power, 4, x, 5)
-        self.assertRaises(TypeError, inplacepower, 4, x, 5)
+        self.assertEqual(power(4, x, 5), (x, 4, 5))
+        self.assertEqual(inplacepower(4, x, 5), (x, 4, 5))
 
         class X:
             def __ipow__(*args):
@@ -250,21 +248,6 @@ class CAPITest(unittest.TestCase):
         self.assertEqual(inplacepower(x, 11), (x, 11))
         # XXX: In-place power doesn't pass the third arg to __ipow__.
         self.assertEqual(inplacepower(x, 11, 5), (x, 11))
-
-    @cpython_only
-    def test_rshift_print(self):
-        # This tests correct syntax hint for py2 redirection (>>).
-        rshift = _testcapi.number_rshift
-
-        with self.assertRaises(TypeError) as context:
-            rshift(print, 42)
-        self.assertIn('Did you mean "print(<message>, '
-                      'file=<output_stream>)"?', str(context.exception))
-        with self.assertRaises(TypeError) as context:
-            rshift(max, sys.stderr)
-        self.assertNotIn('Did you mean ', str(context.exception))
-        with self.assertRaises(TypeError) as context:
-            rshift(1, "spam")
 
     def test_long(self):
         # Test PyNumber_Long()

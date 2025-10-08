@@ -7,6 +7,7 @@ from test.support import os_helper
 from test.support import import_helper
 from test.support.warnings_helper import check_warnings
 
+_testcapi = import_helper.import_module('_testcapi')
 _testlimitedcapi = import_helper.import_module('_testlimitedcapi')
 NULL = None
 
@@ -70,6 +71,8 @@ class ImportTests(unittest.TestCase):
         names = ['nonexistent']
         if accept_nonstr:
             names.append(b'\xff')  # non-UTF-8
+            # PyImport_AddModuleObject() accepts non-string names
+            names.append(tuple(['hashable non-string']))
         for name in names:
             with self.subTest(name=name):
                 self.assertNotIn(name, sys.modules)
@@ -146,7 +149,7 @@ class ImportTests(unittest.TestCase):
         try:
             self.assertEqual(import_frozen_module('zipimport'), 1)
 
-            # import zipimport again
+            # import zipimport again
             self.assertEqual(import_frozen_module('zipimport'), 1)
         finally:
             sys.modules['zipimport'] = old_zipimport
@@ -219,7 +222,7 @@ class ImportTests(unittest.TestCase):
             # Create a temporary module where the code will be executed
             self.assertNotIn(name, sys.modules)
             module = _testlimitedcapi.PyImport_AddModuleRef(name)
-            self.assertFalse(hasattr(module, 'attr'))
+            self.assertNotHasAttr(module, 'attr')
 
             # Execute the code
             code = compile('attr = 1', '<test>', 'exec')
@@ -309,8 +312,64 @@ class ImportTests(unittest.TestCase):
 
         code = compile('attr = 1', '<test>', 'exec')
         self.assertRaises(TypeError, execute_code_func, [], code, NULL, NULL)
+        nonstring = tuple(['hashable non-string'])
+        self.assertRaises(AttributeError, execute_code_func, nonstring, code, NULL, NULL)
+        sys.modules.pop(nonstring, None)
         # CRASHES execute_code_func(NULL, code, NULL, NULL)
         # CRASHES execute_code_func(name, NULL, NULL, NULL)
+
+    def check_importmoduleattr(self, importmoduleattr):
+        self.assertIs(importmoduleattr('sys', 'argv'), sys.argv)
+        self.assertIs(importmoduleattr('types', 'ModuleType'), types.ModuleType)
+
+        # module name containing a dot
+        attr = importmoduleattr('email.message', 'Message')
+        from email.message import Message
+        self.assertIs(attr, Message)
+
+        with self.assertRaises(ImportError):
+            # nonexistent module
+            importmoduleattr('nonexistentmodule', 'attr')
+        with self.assertRaises(AttributeError):
+            # nonexistent attribute
+            importmoduleattr('sys', 'nonexistentattr')
+        with self.assertRaises(AttributeError):
+            # attribute name containing a dot
+            importmoduleattr('sys', 'implementation.name')
+
+    def test_importmoduleattr(self):
+        # Test PyImport_ImportModuleAttr()
+        importmoduleattr = _testcapi.PyImport_ImportModuleAttr
+        self.check_importmoduleattr(importmoduleattr)
+
+        # Invalid module name type
+        for mod_name in (object(), 123, b'bytes'):
+            with self.subTest(mod_name=mod_name):
+                with self.assertRaises(TypeError):
+                    importmoduleattr(mod_name, "attr")
+
+        # Invalid attribute name type
+        for attr_name in (object(), 123, b'bytes'):
+            with self.subTest(attr_name=attr_name):
+                with self.assertRaises(TypeError):
+                    importmoduleattr("sys", attr_name)
+
+        with self.assertRaises(SystemError):
+            importmoduleattr(NULL, "argv")
+        # CRASHES importmoduleattr("sys", NULL)
+
+    def test_importmoduleattrstring(self):
+        # Test PyImport_ImportModuleAttrString()
+        importmoduleattr = _testcapi.PyImport_ImportModuleAttrString
+        self.check_importmoduleattr(importmoduleattr)
+
+        with self.assertRaises(UnicodeDecodeError):
+            importmoduleattr(b"sys\xff", "argv")
+        with self.assertRaises(UnicodeDecodeError):
+            importmoduleattr("sys", b"argv\xff")
+
+        # CRASHES importmoduleattr(NULL, "argv")
+        # CRASHES importmoduleattr("sys", NULL)
 
     # TODO: test PyImport_GetImporter()
     # TODO: test PyImport_ReloadModule()

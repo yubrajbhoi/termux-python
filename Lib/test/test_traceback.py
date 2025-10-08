@@ -19,7 +19,7 @@ from test.support import (Error, captured_output, cpython_only, ALWAYS_EQ,
                           requires_debug_ranges, has_no_debug_ranges,
                           requires_subprocess)
 from test.support.os_helper import TESTFN, unlink
-from test.support.script_helper import assert_python_ok, assert_python_failure
+from test.support.script_helper import assert_python_ok, assert_python_failure, make_script
 from test.support.import_helper import forget
 from test.support import force_not_colorized, force_not_colorized_test_class
 
@@ -36,6 +36,12 @@ test_code = namedtuple('code', ['co_filename', 'co_name'])
 test_code.co_positions = lambda _: iter([(6, 6, 0, 0)])
 test_frame = namedtuple('frame', ['f_code', 'f_globals', 'f_locals'])
 test_tb = namedtuple('tb', ['tb_frame', 'tb_lineno', 'tb_next', 'tb_lasti'])
+
+color_overrides = {"reset": "z", "filename": "fn", "error_highlight": "E"}
+colors = {
+    color_overrides.get(k, k[0].lower()): v
+    for k, v in _colorize.default_theme.traceback.items()
+}
 
 
 LEVENSHTEIN_DATA_FILE = Path(__file__).parent / 'levenshtein_examples.json'
@@ -86,7 +92,7 @@ class TracebackCases(unittest.TestCase):
         err = self.get_exception_format(self.syntax_error_with_caret,
                                         SyntaxError)
         self.assertEqual(len(err), 4)
-        self.assertTrue(err[1].strip() == "return x!")
+        self.assertEqual(err[1].strip(), "return x!")
         self.assertIn("^", err[2]) # third line has caret
         self.assertEqual(err[1].find("!"), err[2].find("^")) # in the right place
         self.assertEqual(err[2].count("^"), 1)
@@ -443,16 +449,10 @@ class TracebackCases(unittest.TestCase):
             err_line = "raise RuntimeError('{0}')".format(message_ascii)
             err_msg = "RuntimeError: {0}".format(message_ascii)
 
-            self.assertIn(("line %s" % lineno), stdout[1],
-                "Invalid line number: {0!r} instead of {1}".format(
-                    stdout[1], lineno))
-            self.assertTrue(stdout[2].endswith(err_line),
-                "Invalid traceback line: {0!r} instead of {1!r}".format(
-                    stdout[2], err_line))
+            self.assertIn("line %s" % lineno, stdout[1])
+            self.assertEndsWith(stdout[2], err_line)
             actual_err_msg = stdout[3]
-            self.assertTrue(actual_err_msg == err_msg,
-                "Invalid error message: {0!r} instead of {1!r}".format(
-                    actual_err_msg, err_msg))
+            self.assertEqual(actual_err_msg, err_msg)
 
         do_test("", "foo", "ascii", 3)
         for charset in ("ascii", "iso-8859-1", "utf-8", "GBK"):
@@ -653,6 +653,7 @@ class TracebackErrorLocationCaretTestBase:
         def f_with_type():
             def foo(a: THIS_DOES_NOT_EXIST ) -> int:
                 return 0
+            foo.__annotations__
 
         lineno_f = f_with_type.__code__.co_firstlineno
         expected_f = (
@@ -660,7 +661,9 @@ class TracebackErrorLocationCaretTestBase:
             f'  File "{__file__}", line {self.callable_line}, in get_exception\n'
             '    callable()\n'
             '    ~~~~~~~~^^\n'
-            f'  File "{__file__}", line {lineno_f+1}, in f_with_type\n'
+            f'  File "{__file__}", line {lineno_f+3}, in f_with_type\n'
+            '    foo.__annotations__\n'
+            f'  File "{__file__}", line {lineno_f+1}, in __annotate__\n'
             '    def foo(a: THIS_DOES_NOT_EXIST ) -> int:\n'
             '               ^^^^^^^^^^^^^^^^^^^\n'
         )
@@ -1737,6 +1740,49 @@ class TracebackErrorLocationCaretTestBase:
         ]
         self.assertEqual(result_lines, expected)
 
+class TestKeywordTypoSuggestions(unittest.TestCase):
+    TYPO_CASES = [
+        ("with block ad something:\n  pass", "and"),
+        ("fur a in b:\n  pass", "for"),
+        ("for a in b:\n  pass\nelso:\n  pass", "else"),
+        ("whille True:\n  pass", "while"),
+        ("iff x > 5:\n  pass", "if"),
+        ("if x:\n  pass\nelseif y:\n  pass", "elif"),
+        ("tyo:\n  pass\nexcept y:\n  pass", "try"),
+        ("classe MyClass:\n  pass", "class"),
+        ("impor math", "import"),
+        ("form x import y", "from"),
+        ("defn calculate_sum(a, b):\n  return a + b", "def"),
+        ("def foo():\n  returm result", "return"),
+        ("lamda x: x ** 2", "lambda"),
+        ("def foo():\n  yeld i", "yield"),
+        ("def foo():\n  globel counter", "global"),
+        ("frum math import sqrt", "from"),
+        ("asynch def fetch_data():\n  pass", "async"),
+        ("async def foo():\n  awaid fetch_data()", "await"),
+        ('raisee ValueError("Error")', "raise"),
+        ("[x for x\nin range(3)\nof x]", "if"),
+        ("[123 fur x\nin range(3)\nif x]", "for"),
+        ("for x im n:\n  pass", "in"),
+    ]
+
+    def test_keyword_suggestions_from_file(self):
+        with tempfile.TemporaryDirectory() as script_dir:
+            for i, (code, expected_kw) in enumerate(self.TYPO_CASES):
+                with self.subTest(typo=expected_kw):
+                    source = textwrap.dedent(code).strip()
+                    script_name = make_script(script_dir, f"script_{i}", source)
+                    rc, stdout, stderr = assert_python_failure(script_name)
+                    stderr_text = stderr.decode('utf-8')
+                    self.assertIn(f"Did you mean '{expected_kw}'", stderr_text)
+
+    def test_keyword_suggestions_from_command_string(self):
+        for code, expected_kw in self.TYPO_CASES:
+            with self.subTest(typo=expected_kw):
+                source = textwrap.dedent(code).strip()
+                rc, stdout, stderr = assert_python_failure('-c', source)
+                stderr_text = stderr.decode('utf-8')
+                self.assertIn(f"Did you mean '{expected_kw}'", stderr_text)
 
 @requires_debug_ranges()
 @force_not_colorized_test_class
@@ -1836,9 +1882,9 @@ class TracebackFormatMixin:
         banner = tb_lines[0]
         self.assertEqual(len(tb_lines), 5)
         location, source_line = tb_lines[-2], tb_lines[-1]
-        self.assertTrue(banner.startswith('Traceback'))
-        self.assertTrue(location.startswith('  File'))
-        self.assertTrue(source_line.startswith('    raise'))
+        self.assertStartsWith(banner, 'Traceback')
+        self.assertStartsWith(location, '  File')
+        self.assertStartsWith(source_line, '    raise')
 
     def test_traceback_format(self):
         self.check_traceback_format()
@@ -2127,6 +2173,7 @@ class TracebackFormatMixin:
         return e
 
     @cpython_only
+    @support.skip_emscripten_stack_overflow()
     def test_exception_group_deep_recursion_capi(self):
         from _testcapi import exception_print
         LIMIT = 75
@@ -2138,6 +2185,7 @@ class TracebackFormatMixin:
         self.assertIn('ExceptionGroup', output)
         self.assertLessEqual(output.count('ExceptionGroup'), LIMIT)
 
+    @support.skip_emscripten_stack_overflow()
     def test_exception_group_deep_recursion_traceback(self):
         LIMIT = 75
         eg = self.deep_eg()
@@ -2215,12 +2263,12 @@ class BaseExceptionReportingTests:
     def check_zero_div(self, msg):
         lines = msg.splitlines()
         if has_no_debug_ranges():
-            self.assertTrue(lines[-3].startswith('  File'))
+            self.assertStartsWith(lines[-3], '  File')
             self.assertIn('1/0 # In zero_div', lines[-2])
         else:
-            self.assertTrue(lines[-4].startswith('  File'))
+            self.assertStartsWith(lines[-4], '  File')
             self.assertIn('1/0 # In zero_div', lines[-3])
-        self.assertTrue(lines[-1].startswith('ZeroDivisionError'), lines[-1])
+        self.assertStartsWith(lines[-1], 'ZeroDivisionError')
 
     def test_simple(self):
         try:
@@ -2230,12 +2278,12 @@ class BaseExceptionReportingTests:
         lines = self.get_report(e).splitlines()
         if has_no_debug_ranges():
             self.assertEqual(len(lines), 4)
-            self.assertTrue(lines[3].startswith('ZeroDivisionError'))
+            self.assertStartsWith(lines[3], 'ZeroDivisionError')
         else:
             self.assertEqual(len(lines), 5)
-            self.assertTrue(lines[4].startswith('ZeroDivisionError'))
-        self.assertTrue(lines[0].startswith('Traceback'))
-        self.assertTrue(lines[1].startswith('  File'))
+            self.assertStartsWith(lines[4], 'ZeroDivisionError')
+        self.assertStartsWith(lines[0], 'Traceback')
+        self.assertStartsWith(lines[1], '  File')
         self.assertIn('1/0 # Marker', lines[2])
 
     def test_cause(self):
@@ -2276,9 +2324,9 @@ class BaseExceptionReportingTests:
             e = _
         lines = self.get_report(e).splitlines()
         self.assertEqual(len(lines), 4)
-        self.assertTrue(lines[3].startswith('ZeroDivisionError'))
-        self.assertTrue(lines[0].startswith('Traceback'))
-        self.assertTrue(lines[1].startswith('  File'))
+        self.assertStartsWith(lines[3], 'ZeroDivisionError')
+        self.assertStartsWith(lines[0], 'Traceback')
+        self.assertStartsWith(lines[1], '  File')
         self.assertIn('ZeroDivisionError from None', lines[2])
 
     def test_cause_and_context(self):
@@ -3236,10 +3284,16 @@ class TestStack(unittest.TestCase):
     def test_walk_stack(self):
         def deeper():
             return list(traceback.walk_stack(None))
-        s1 = list(traceback.walk_stack(None))
-        s2 = deeper()
+        s1, s2 = list(traceback.walk_stack(None)), deeper()
         self.assertEqual(len(s2) - len(s1), 1)
         self.assertEqual(s2[1:], s1)
+
+    def test_walk_innermost_frame(self):
+        def inner():
+            return list(traceback.walk_stack(None))
+        frames = inner()
+        innermost_frame, _ = frames[0]
+        self.assertEqual(innermost_frame.f_code.co_name, "inner")
 
     def test_walk_tb(self):
         try:
@@ -3606,6 +3660,7 @@ class TestTracebackException(unittest.TestCase):
             self.assertIsNone(te.exc_type)
 
     def test_no_refs_to_exception_and_traceback_objects(self):
+        exc_obj = None
         try:
             1/0
         except Exception as e:
@@ -4647,9 +4702,8 @@ class MiscTest(unittest.TestCase):
 
     def test_all(self):
         expected = set()
-        denylist = {'print_list'}
         for name in dir(traceback):
-            if name.startswith('_') or name in denylist:
+            if name.startswith('_'):
                 continue
             module_object = getattr(traceback, name)
             if getattr(module_object, '__module__', None) == 'traceback':
@@ -4741,6 +4795,8 @@ class MiscTest(unittest.TestCase):
 
 
 class TestColorizedTraceback(unittest.TestCase):
+    maxDiff = None
+
     def test_colorized_traceback(self):
         def foo(*args):
             x = {'a':{'b': None}}
@@ -4763,9 +4819,9 @@ class TestColorizedTraceback(unittest.TestCase):
                 e, capture_locals=True
             )
         lines = "".join(exc.format(colorize=True))
-        red = _colorize.ANSIColors.RED
-        boldr = _colorize.ANSIColors.BOLD_RED
-        reset = _colorize.ANSIColors.RESET
+        red = colors["e"]
+        boldr = colors["E"]
+        reset = colors["z"]
         self.assertIn("y = " + red + "x['a']['b']" + reset + boldr + "['c']" + reset, lines)
         self.assertIn("return " + red + "(lambda *args: foo(*args))" + reset + boldr + "(1,2,3,4)" + reset, lines)
         self.assertIn("return (lambda *args: " + red + "foo" + reset + boldr + "(*args)" + reset + ")(1,2,3,4)", lines)
@@ -4781,18 +4837,16 @@ class TestColorizedTraceback(unittest.TestCase):
                 e, capture_locals=True
             )
         actual = "".join(exc.format(colorize=True))
-        red = _colorize.ANSIColors.RED
-        magenta = _colorize.ANSIColors.MAGENTA
-        boldm = _colorize.ANSIColors.BOLD_MAGENTA
-        boldr = _colorize.ANSIColors.BOLD_RED
-        reset = _colorize.ANSIColors.RESET
-        expected = "".join([
-        f'  File {magenta}"<string>"{reset}, line {magenta}1{reset}\n',
-        f'    a {boldr}${reset} b\n',
-        f'      {boldr}^{reset}\n',
-        f'{boldm}SyntaxError{reset}: {magenta}invalid syntax{reset}\n']
-        )
-        self.assertIn(expected, actual)
+        def expected(t, m, fn, l, f, E, e, z):
+            return "".join(
+                [
+                    f'  File {fn}"<string>"{z}, line {l}1{z}\n',
+                    f'    a {E}${z} b\n',
+                    f'      {E}^{z}\n',
+                    f'{t}SyntaxError{z}: {m}invalid syntax{z}\n'
+                ]
+            )
+        self.assertIn(expected(**colors), actual)
 
     def test_colorized_traceback_is_the_default(self):
         def foo():
@@ -4808,23 +4862,21 @@ class TestColorizedTraceback(unittest.TestCase):
                     exception_print(e)
             actual = tbstderr.getvalue().splitlines()
 
-        red = _colorize.ANSIColors.RED
-        boldr = _colorize.ANSIColors.BOLD_RED
-        magenta = _colorize.ANSIColors.MAGENTA
-        boldm = _colorize.ANSIColors.BOLD_MAGENTA
-        reset = _colorize.ANSIColors.RESET
         lno_foo = foo.__code__.co_firstlineno
-        expected = ['Traceback (most recent call last):',
-            f'  File {magenta}"{__file__}"{reset}, '
-            f'line {magenta}{lno_foo+5}{reset}, in {magenta}test_colorized_traceback_is_the_default{reset}',
-            f'    {red}foo{reset+boldr}(){reset}',
-            f'    {red}~~~{reset+boldr}^^{reset}',
-            f'  File {magenta}"{__file__}"{reset}, '
-            f'line {magenta}{lno_foo+1}{reset}, in {magenta}foo{reset}',
-            f'    {red}1{reset+boldr}/{reset+red}0{reset}',
-            f'    {red}~{reset+boldr}^{reset+red}~{reset}',
-            f'{boldm}ZeroDivisionError{reset}: {magenta}division by zero{reset}']
-        self.assertEqual(actual, expected)
+        def expected(t, m, fn, l, f, E, e, z):
+            return [
+                'Traceback (most recent call last):',
+                f'  File {fn}"{__file__}"{z}, '
+                f'line {l}{lno_foo+5}{z}, in {f}test_colorized_traceback_is_the_default{z}',
+                f'    {e}foo{z}{E}(){z}',
+                f'    {e}~~~{z}{E}^^{z}',
+                f'  File {fn}"{__file__}"{z}, '
+                f'line {l}{lno_foo+1}{z}, in {f}foo{z}',
+                f'    {e}1{z}{E}/{z}{e}0{z}',
+                f'    {e}~{z}{E}^{z}{e}~{z}',
+                f'{t}ZeroDivisionError{z}: {m}division by zero{z}',
+            ]
+        self.assertEqual(actual, expected(**colors))
 
     def test_colorized_traceback_from_exception_group(self):
         def foo():
@@ -4842,33 +4894,31 @@ class TestColorizedTraceback(unittest.TestCase):
                 e, capture_locals=True
             )
 
-        red = _colorize.ANSIColors.RED
-        boldr = _colorize.ANSIColors.BOLD_RED
-        magenta = _colorize.ANSIColors.MAGENTA
-        boldm = _colorize.ANSIColors.BOLD_MAGENTA
-        reset = _colorize.ANSIColors.RESET
         lno_foo = foo.__code__.co_firstlineno
         actual = "".join(exc.format(colorize=True)).splitlines()
-        expected = [f"  + Exception Group Traceback (most recent call last):",
-                   f'  |   File {magenta}"{__file__}"{reset}, line {magenta}{lno_foo+9}{reset}, in {magenta}test_colorized_traceback_from_exception_group{reset}',
-                   f'  |     {red}foo{reset}{boldr}(){reset}',
-                   f'  |     {red}~~~{reset}{boldr}^^{reset}',
-                   f"  |     e = ExceptionGroup('test', [ZeroDivisionError('division by zero')])",
-                   f"  |     foo = {foo}",
-                   f'  |     self = <{__name__}.TestColorizedTraceback testMethod=test_colorized_traceback_from_exception_group>',
-                   f'  |   File {magenta}"{__file__}"{reset}, line {magenta}{lno_foo+6}{reset}, in {magenta}foo{reset}',
-                   f'  |     raise ExceptionGroup("test", exceptions)',
-                   f"  |     exceptions = [ZeroDivisionError('division by zero')]",
-                   f'  | {boldm}ExceptionGroup{reset}: {magenta}test (1 sub-exception){reset}',
-                   f'  +-+---------------- 1 ----------------',
-                   f'    | Traceback (most recent call last):',
-                   f'    |   File {magenta}"{__file__}"{reset}, line {magenta}{lno_foo+3}{reset}, in {magenta}foo{reset}',
-                   f'    |     {red}1 {reset}{boldr}/{reset}{red} 0{reset}',
-                   f'    |     {red}~~{reset}{boldr}^{reset}{red}~~{reset}',
-                   f"    |     exceptions = [ZeroDivisionError('division by zero')]",
-                   f'    | {boldm}ZeroDivisionError{reset}: {magenta}division by zero{reset}',
-                   f'    +------------------------------------']
-        self.assertEqual(actual, expected)
+        def expected(t, m, fn, l, f, E, e, z):
+            return [
+                f"  + Exception Group Traceback (most recent call last):",
+                f'  |   File {fn}"{__file__}"{z}, line {l}{lno_foo+9}{z}, in {f}test_colorized_traceback_from_exception_group{z}',
+                f'  |     {e}foo{z}{E}(){z}',
+                f'  |     {e}~~~{z}{E}^^{z}',
+                f"  |     e = ExceptionGroup('test', [ZeroDivisionError('division by zero')])",
+                f"  |     foo = {foo}",
+                f'  |     self = <{__name__}.TestColorizedTraceback testMethod=test_colorized_traceback_from_exception_group>',
+                f'  |   File {fn}"{__file__}"{z}, line {l}{lno_foo+6}{z}, in {f}foo{z}',
+                f'  |     raise ExceptionGroup("test", exceptions)',
+                f"  |     exceptions = [ZeroDivisionError('division by zero')]",
+                f'  | {t}ExceptionGroup{z}: {m}test (1 sub-exception){z}',
+                f'  +-+---------------- 1 ----------------',
+                f'    | Traceback (most recent call last):',
+                f'    |   File {fn}"{__file__}"{z}, line {l}{lno_foo+3}{z}, in {f}foo{z}',
+                f'    |     {e}1 {z}{E}/{z}{e} 0{z}',
+                f'    |     {e}~~{z}{E}^{z}{e}~~{z}',
+                f"    |     exceptions = [ZeroDivisionError('division by zero')]",
+                f'    | {t}ZeroDivisionError{z}: {m}division by zero{z}',
+                f'    +------------------------------------',
+        ]
+        self.assertEqual(actual, expected(**colors))
 
 if __name__ == "__main__":
     unittest.main()

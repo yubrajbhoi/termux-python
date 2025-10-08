@@ -741,10 +741,6 @@ checktm(struct tm* buf)
     return 1;
 }
 
-#ifdef MS_WINDOWS
-   /* wcsftime() doesn't format correctly time zones, see issue #10653 */
-#  undef HAVE_WCSFTIME
-#endif
 #define STRFTIME_FORMAT_CODES \
 "Commonly used format codes:\n\
 \n\
@@ -919,9 +915,10 @@ time_strftime(PyObject *module, PyObject *args)
         PyErr_NoMemory();
         return NULL;
     }
-    _PyUnicodeWriter writer;
-    _PyUnicodeWriter_Init(&writer);
-    writer.overallocate = 1;
+    PyUnicodeWriter *writer = PyUnicodeWriter_Create(0);
+    if (writer == NULL) {
+        goto error;
+    }
     Py_ssize_t i = 0;
     while (i < format_size) {
         fmtlen = 0;
@@ -939,7 +936,7 @@ time_strftime(PyObject *module, PyObject *args)
             if (unicode == NULL) {
                 goto error;
             }
-            if (_PyUnicodeWriter_WriteStr(&writer, unicode) < 0) {
+            if (PyUnicodeWriter_WriteStr(writer, unicode) < 0) {
                 Py_DECREF(unicode);
                 goto error;
             }
@@ -953,20 +950,18 @@ time_strftime(PyObject *module, PyObject *args)
                 break;
             }
         }
-        if (start < i) {
-            if (_PyUnicodeWriter_WriteSubstring(&writer, format_arg, start, i) < 0) {
-                goto error;
-            }
+        if (PyUnicodeWriter_WriteSubstring(writer, format_arg, start, i) < 0) {
+            goto error;
         }
     }
 
     PyMem_Free(outbuf);
     PyMem_Free(format);
-    return _PyUnicodeWriter_Finish(&writer);
+    return PyUnicodeWriter_Finish(writer);
 error:
     PyMem_Free(outbuf);
     PyMem_Free(format);
-    _PyUnicodeWriter_Dealloc(&writer);
+    PyUnicodeWriter_Discard(writer);
     return NULL;
 }
 
@@ -986,7 +981,7 @@ time_strptime(PyObject *self, PyObject *args)
 {
     PyObject *func, *result;
 
-    func = _PyImport_GetModuleAttrString("_strptime", "_strptime_time");
+    func = PyImport_ImportModuleAttrString("_strptime", "_strptime_time");
     if (!func) {
         return NULL;
     }
@@ -1544,7 +1539,7 @@ _PyTime_GetThreadTimeWithInfo(PyTime_t *tp, _Py_clock_info_t *info)
       !defined(__NetBSD__)
 #define HAVE_THREAD_TIME
 
-#if defined(__APPLE__) && defined(__has_attribute) && __has_attribute(availability)
+#if defined(__APPLE__) && _Py__has_attribute(availability)
 static int
 _PyTime_GetThreadTimeWithInfo(PyTime_t *tp, _Py_clock_info_t *info)
      __attribute__((availability(macos, introduced=10.12)))

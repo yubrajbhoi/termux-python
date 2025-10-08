@@ -7,25 +7,25 @@ Checkbutton, Scale, Listbox, Scrollbar, OptionMenu, Spinbox
 LabelFrame and PanedWindow.
 
 Properties of the widgets are specified with keyword arguments.
-Keyword arguments have the same name as the corresponding options
+Keyword arguments have the same name as the corresponding resource
 under Tk.
 
 Widgets are positioned with one of the geometry managers Place, Pack
 or Grid. These managers can be called with methods place, pack, grid
 available in every Widget.
 
-Actions are bound to events by options (e.g. the command
-keyword argument) or with the bind() method.
+Actions are bound to events by resources (e.g. keyword argument
+command) or with the method bind.
 
 Example (Hello, World):
 import tkinter
 from tkinter.constants import *
 tk = tkinter.Tk()
 frame = tkinter.Frame(tk, relief=RIDGE, borderwidth=2)
-frame.pack(fill=BOTH, expand=1)
+frame.pack(fill=BOTH,expand=1)
 label = tkinter.Label(frame, text="Hello, World")
 label.pack(fill=X, expand=1)
-button = tkinter.Button(frame, text="Exit", command=tk.destroy)
+button = tkinter.Button(frame,text="Exit",command=tk.destroy)
 button.pack(side=BOTTOM)
 tk.mainloop()
 """
@@ -295,6 +295,8 @@ class Event:
             ''.join(' %s=%s' % (k, attrs[k]) for k in keys if k in attrs)
         )
 
+    __class_getitem__ = classmethod(types.GenericAlias)
+
 
 _support_default_root = True
 _default_root = None
@@ -498,10 +500,14 @@ class Variable:
 
         Return the name of the callback.
 
-        This deprecated method wraps a deprecated Tcl method that will
-        likely be removed in the future.  Use trace_add() instead.
+        This deprecated method wraps a deprecated Tcl method removed
+        in Tcl 9.0.  Use trace_add() instead.
         """
-        # TODO: Add deprecation warning
+        import warnings
+        warnings.warn(
+                "trace_variable() is deprecated and not supported with Tcl 9; "
+                "use trace_add() instead.",
+                DeprecationWarning, stacklevel=2)
         cbname = self._register(callback)
         self._tk.call("trace", "variable", self._name, mode, cbname)
         return cbname
@@ -514,10 +520,14 @@ class Variable:
         MODE is one of "r", "w", "u" for read, write, undefine.
         CBNAME is the name of the callback returned from trace_variable or trace.
 
-        This deprecated method wraps a deprecated Tcl method that will
-        likely be removed in the future.  Use trace_remove() instead.
+        This deprecated method wraps a deprecated Tcl method removed
+        in Tcl 9.0.  Use trace_remove() instead.
         """
-        # TODO: Add deprecation warning
+        import warnings
+        warnings.warn(
+                "trace_vdelete() is deprecated and not supported with Tcl 9; "
+                "use trace_remove() instead.",
+                DeprecationWarning, stacklevel=2)
         self._tk.call("trace", "vdelete", self._name, mode, cbname)
         cbname = self._tk.splitlist(cbname)[0]
         for m, ca in self.trace_info():
@@ -533,10 +543,14 @@ class Variable:
     def trace_vinfo(self):
         """Return all trace callback information.
 
-        This deprecated method wraps a deprecated Tcl method that will
-        likely be removed in the future.  Use trace_info() instead.
+        This deprecated method wraps a deprecated Tcl method removed
+        in Tcl 9.0.  Use trace_info() instead.
         """
-        # TODO: Add deprecation warning
+        import warnings
+        warnings.warn(
+                "trace_vinfo() is deprecated and not supported with Tcl 9; "
+                "use trace_info() instead.",
+                DeprecationWarning, stacklevel=2)
         return [self._tk.splitlist(x) for x in self._tk.splitlist(
             self._tk.call("trace", "vinfo", self._name))]
 
@@ -833,7 +847,7 @@ class Misc:
         The focus order first goes to the next child, then to
         the children of the child recursively and then to the
         next sibling which is higher in the stacking order.  A
-        widget is omitted if it has the takefocus option set
+        widget is omitted if it has the takefocus resource set
         to 0."""
         name = self.tk.call('tk_focusNext', self._w)
         if not name: return None
@@ -845,7 +859,7 @@ class Misc:
         if not name: return None
         return self._nametowidget(name)
 
-    def after(self, ms, func=None, *args):
+    def after(self, ms, func=None, *args, **kw):
         """Call function once after given time.
 
         MS specifies the time in milliseconds. FUNC gives the
@@ -859,7 +873,7 @@ class Misc:
         else:
             def callit():
                 try:
-                    func(*args)
+                    func(*args, **kw)
                 finally:
                     try:
                         self.deletecommand(name)
@@ -873,13 +887,13 @@ class Misc:
             name = self._register(callit)
             return self.tk.call('after', ms, name)
 
-    def after_idle(self, func, *args):
+    def after_idle(self, func, *args, **kw):
         """Call FUNC once if the Tcl main loop has no event to
         process.
 
         Return an identifier to cancel the scheduling with
         after_cancel."""
-        return self.after('idle', func, *args)
+        return self.after('idle', func, *args, **kw)
 
     def after_cancel(self, id):
         """Cancel scheduling of function identified with ID.
@@ -1813,24 +1827,18 @@ class Misc:
     # These used to be defined in Widget:
 
     def configure(self, cnf=None, **kw):
-        """Query or modify the configuration options of the widget.
+        """Configure resources of a widget.
 
-        If no arguments are specified, return a dictionary describing
-        all of the available options for the widget.
-
-        If an option name is specified, then return a tuple describing
-        the one named option.
-
-        If one or more keyword arguments are specified or a dictionary
-        is specified, then modify the widget option(s) to have the given
-        value(s).
+        The values for resources are specified as keyword
+        arguments. To get an overview about
+        the allowed keyword arguments call the method keys.
         """
         return self._configure('configure', cnf, kw)
 
     config = configure
 
     def cget(self, key):
-        """Return the current value of the configuration option."""
+        """Return the resource value for a KEY given as string."""
         return self.tk.call(self._w, 'cget', '-' + key)
 
     __getitem__ = cget
@@ -1839,7 +1847,7 @@ class Misc:
         self.configure({key: value})
 
     def keys(self):
-        """Return a list of all option names of this widget."""
+        """Return a list of all resource names of this widget."""
         splitlist = self.tk.splitlist
         return [splitlist(x)[0][1:] for x in
                 splitlist(self.tk.call(self._w, 'configure'))]
@@ -1958,7 +1966,7 @@ class Misc:
     def grid_columnconfigure(self, index, cnf={}, **kw):
         """Configure column INDEX of a grid.
 
-        Valid options are minsize (minimum size of the column),
+        Valid resources are minsize (minimum size of the column),
         weight (how much does additional space propagate to this column)
         and pad (how much space to let additionally)."""
         return self._grid_configure('columnconfigure', index, cnf, kw)
@@ -1989,7 +1997,7 @@ class Misc:
     def grid_rowconfigure(self, index, cnf={}, **kw):
         """Configure row INDEX of a grid.
 
-        Valid options are minsize (minimum size of the row),
+        Valid resources are minsize (minimum size of the row),
         weight (how much does additional space propagate to this row)
         and pad (how much space to let additionally)."""
         return self._grid_configure('rowconfigure', index, cnf, kw)
@@ -2809,7 +2817,7 @@ class Toplevel(BaseWidget, Wm):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a toplevel widget with the parent MASTER.
 
-        Valid option names: background, bd, bg, borderwidth, class,
+        Valid resource names: background, bd, bg, borderwidth, class,
         colormap, container, cursor, height, highlightbackground,
         highlightcolor, highlightthickness, menu, relief, screen, takefocus,
         use, visual, width."""
@@ -2886,7 +2894,7 @@ class Canvas(Widget, XView, YView):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a canvas widget with the parent MASTER.
 
-        Valid option names: background, bd, bg, borderwidth, closeenough,
+        Valid resource names: background, bd, bg, borderwidth, closeenough,
         confine, cursor, height, highlightbackground, highlightcolor,
         highlightthickness, insertbackground, insertborderwidth,
         insertofftime, insertontime, insertwidth, offset, relief,
@@ -3095,14 +3103,16 @@ class Canvas(Widget, XView, YView):
         self.tk.call((self._w, 'insert') + args)
 
     def itemcget(self, tagOrId, option):
-        """Return the value of OPTION for item TAGORID."""
+        """Return the resource value for an OPTION for item TAGORID."""
         return self.tk.call(
             (self._w, 'itemcget') + (tagOrId, '-'+option))
 
     def itemconfigure(self, tagOrId, cnf=None, **kw):
-        """Query or modify the configuration options of an item TAGORID.
+        """Configure resources of an item TAGORID.
 
-        Similar to configure() except that it applies to the specified item.
+        The values for resources are specified as keyword
+        arguments. To get an overview about
+        the allowed keyword arguments call the method without arguments.
         """
         return self._configure(('itemconfigure', tagOrId), cnf, kw)
 
@@ -3194,7 +3204,7 @@ class Checkbutton(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a checkbutton widget with the parent MASTER.
 
-        Valid option names: activebackground, activeforeground, anchor,
+        Valid resource names: activebackground, activeforeground, anchor,
         background, bd, bg, bitmap, borderwidth, command, cursor,
         disabledforeground, fg, font, foreground, height,
         highlightbackground, highlightcolor, highlightthickness, image,
@@ -3225,7 +3235,7 @@ class Checkbutton(Widget):
         self.tk.call(self._w, 'flash')
 
     def invoke(self):
-        """Toggle the button and invoke a command if given as option."""
+        """Toggle the button and invoke a command if given as resource."""
         return self.tk.call(self._w, 'invoke')
 
     def select(self):
@@ -3243,7 +3253,7 @@ class Entry(Widget, XView):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct an entry widget with the parent MASTER.
 
-        Valid option names: background, bd, bg, borderwidth, cursor,
+        Valid resource names: background, bd, bg, borderwidth, cursor,
         exportselection, fg, font, foreground, highlightbackground,
         highlightcolor, highlightthickness, insertbackground,
         insertborderwidth, insertofftime, insertontime, insertwidth,
@@ -3329,7 +3339,7 @@ class Frame(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a frame widget with the parent MASTER.
 
-        Valid option names: background, bd, bg, borderwidth, class,
+        Valid resource names: background, bd, bg, borderwidth, class,
         colormap, container, cursor, height, highlightbackground,
         highlightcolor, highlightthickness, relief, takefocus, visual, width."""
         cnf = _cnfmerge((cnf, kw))
@@ -3373,7 +3383,7 @@ class Listbox(Widget, XView, YView):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a listbox widget with the parent MASTER.
 
-        Valid option names: background, bd, bg, borderwidth, cursor,
+        Valid resource names: background, bd, bg, borderwidth, cursor,
         exportselection, fg, font, foreground, height, highlightbackground,
         highlightcolor, highlightthickness, relief, selectbackground,
         selectborderwidth, selectforeground, selectmode, setgrid, takefocus,
@@ -3466,15 +3476,18 @@ class Listbox(Widget, XView, YView):
         return self.tk.getint(self.tk.call(self._w, 'size'))
 
     def itemcget(self, index, option):
-        """Return the value of OPTION for item at INDEX."""
+        """Return the resource value for an ITEM and an OPTION."""
         return self.tk.call(
             (self._w, 'itemcget') + (index, '-'+option))
 
     def itemconfigure(self, index, cnf=None, **kw):
-        """Query or modify the configuration options of an item at INDEX.
+        """Configure resources of an ITEM.
 
-        Similar to configure() except that it applies to the specified item.
-        """
+        The values for resources are specified as keyword arguments.
+        To get an overview about the allowed keyword arguments
+        call the method without arguments.
+        Valid resource names: background, bg, foreground, fg,
+        selectbackground, selectforeground."""
         return self._configure(('itemconfigure', index), cnf, kw)
 
     itemconfig = itemconfigure
@@ -3486,7 +3499,7 @@ class Menu(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct menu widget with the parent MASTER.
 
-        Valid option names: activebackground, activeborderwidth,
+        Valid resource names: activebackground, activeborderwidth,
         activeforeground, background, bd, bg, borderwidth, cursor,
         disabledforeground, fg, font, foreground, postcommand, relief,
         selectcolor, takefocus, tearoff, tearoffcommand, title, type."""
@@ -3567,15 +3580,11 @@ class Menu(Widget):
         self.tk.call(self._w, 'delete', index1, index2)
 
     def entrycget(self, index, option):
-        """Return the value of OPTION for a menu item at INDEX."""
+        """Return the resource value of a menu item for OPTION at INDEX."""
         return self.tk.call(self._w, 'entrycget', index, '-' + option)
 
     def entryconfigure(self, index, cnf=None, **kw):
-        """Query or modify the configuration options of a menu item at INDEX.
-
-        Similar to configure() except that it applies to the specified
-        menu item.
-        """
+        """Configure a menu item at INDEX."""
         return self._configure(('entryconfigure', index), cnf, kw)
 
     entryconfig = entryconfigure
@@ -3633,7 +3642,7 @@ class Radiobutton(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a radiobutton widget with the parent MASTER.
 
-        Valid option names: activebackground, activeforeground, anchor,
+        Valid resource names: activebackground, activeforeground, anchor,
         background, bd, bg, bitmap, borderwidth, command, cursor,
         disabledforeground, fg, font, foreground, height,
         highlightbackground, highlightcolor, highlightthickness, image,
@@ -3652,7 +3661,7 @@ class Radiobutton(Widget):
         self.tk.call(self._w, 'flash')
 
     def invoke(self):
-        """Toggle the button and invoke a command if given as option."""
+        """Toggle the button and invoke a command if given as resource."""
         return self.tk.call(self._w, 'invoke')
 
     def select(self):
@@ -3666,7 +3675,7 @@ class Scale(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a scale widget with the parent MASTER.
 
-        Valid option names: activebackground, background, bigincrement, bd,
+        Valid resource names: activebackground, background, bigincrement, bd,
         bg, borderwidth, command, cursor, digits, fg, font, foreground, from,
         highlightbackground, highlightcolor, highlightthickness, label,
         length, orient, relief, repeatdelay, repeatinterval, resolution,
@@ -3705,7 +3714,7 @@ class Scrollbar(Widget):
     def __init__(self, master=None, cnf={}, **kw):
         """Construct a scrollbar widget with the parent MASTER.
 
-        Valid option names: activebackground, activerelief,
+        Valid resource names: activebackground, activerelief,
         background, bd, bg, borderwidth, command, cursor,
         elementborderwidth, highlightbackground,
         highlightcolor, highlightthickness, jump, orient,
@@ -3949,11 +3958,7 @@ class Text(Widget, XView, YView):
         return self.tk.call(self._w, "image", "cget", index, option)
 
     def image_configure(self, index, cnf=None, **kw):
-        """Query or modify the configuration options of an embedded image at INDEX.
-
-        Similar to configure() except that it applies to the specified
-        embedded image.
-        """
+        """Configure an embedded image at INDEX."""
         return self._configure(('image', 'configure', index), cnf, kw)
 
     def image_create(self, index, cnf={}, **kw):
@@ -4091,10 +4096,7 @@ class Text(Widget, XView, YView):
         return self.tk.call(self._w, 'tag', 'cget', tagName, option)
 
     def tag_configure(self, tagName, cnf=None, **kw):
-        """Query or modify the configuration options of a tag TAGNAME.
-
-        Similar to configure() except that it applies to the specified tag.
-        """
+        """Configure a tag TAGNAME."""
         return self._configure(('tag', 'configure', tagName), cnf, kw)
 
     tag_config = tag_configure
@@ -4152,11 +4154,7 @@ class Text(Widget, XView, YView):
         return self.tk.call(self._w, 'window', 'cget', index, option)
 
     def window_configure(self, index, cnf=None, **kw):
-        """Query or modify the configuration options of an embedded window at INDEX.
-
-        Similar to configure() except that it applies to the specified
-        embedded window.
-        """
+        """Configure an embedded window at INDEX."""
         return self._configure(('window', 'configure', index), cnf, kw)
 
     window_config = window_configure
@@ -4196,12 +4194,12 @@ class OptionMenu(Menubutton):
 
     def __init__(self, master, variable, value, *values, **kwargs):
         """Construct an optionmenu widget with the parent MASTER, with
-        the option textvariable set to VARIABLE, the initially selected
+        the resource textvariable set to VARIABLE, the initially selected
         value VALUE, the other menu values VALUES and an additional
         keyword argument command."""
         kw = {"borderwidth": 2, "textvariable": variable,
               "indicatoron": 1, "relief": RAISED, "anchor": "c",
-              "highlightthickness": 2}
+              "highlightthickness": 2, "name": kwargs.pop("name", None)}
         Widget.__init__(self, master, "menubutton", kw)
         self.widgetName = 'tk_optionMenu'
         menu = self.__menu = Menu(self, name="menu", tearoff=0)
@@ -4298,7 +4296,7 @@ class PhotoImage(Image):
     def __init__(self, name=None, cnf={}, master=None, **kw):
         """Create an image with NAME.
 
-        Valid option names: data, format, file, gamma, height, palette,
+        Valid resource names: data, format, file, gamma, height, palette,
         width."""
         Image.__init__(self, 'photo', name, cnf, master, **kw)
 
@@ -4508,7 +4506,7 @@ class PhotoImage(Image):
         The FORMAT option specifies the name of the image file format
         handler to be used.  If this option is not given, this method uses
         a format that consists of a tuple (one element per row) of strings
-        containings space separated (one element per pixel/column) colors
+        containing space-separated (one element per pixel/column) colors
         in “#RRGGBB” format (where RR is a pair of hexadecimal digits for
         the red channel, GG for green, and BB for blue).
 
@@ -4561,7 +4559,7 @@ class BitmapImage(Image):
     def __init__(self, name=None, cnf={}, master=None, **kw):
         """Create a bitmap with NAME.
 
-        Valid option names: background, data, file, foreground, maskdata, maskfile."""
+        Valid resource names: background, data, file, foreground, maskdata, maskfile."""
         Image.__init__(self, 'bitmap', name, cnf, master, **kw)
 
 
@@ -4879,17 +4877,26 @@ class PanedWindow(Widget):
         return self.sash("place", index, x, y)
 
     def panecget(self, child, option):
-        """Return the value of option for a child window."""
+        """Query a management option for window.
+
+        Option may be any value allowed by the paneconfigure subcommand
+        """
         return self.tk.call(
             (self._w, 'panecget') + (child, '-'+option))
 
     def paneconfigure(self, tagOrId, cnf=None, **kw):
-        """Query or modify the configuration options for a child window.
+        """Query or modify the management options for window.
 
-        Similar to configure() except that it applies to the specified
-        window.
-
-        The following options are supported:
+        If no option is specified, returns a list describing all
+        of the available options for pathName.  If option is
+        specified with no value, then the command returns a list
+        describing the one named option (this list will be identical
+        to the corresponding sublist of the value returned if no
+        option is specified). If one or more option-value pairs are
+        specified, then the command modifies the given widget
+        option(s) to have the given value(s); in this case the
+        command returns an empty string. The following options
+        are supported:
 
         after window
             Insert the window after the window specified. window

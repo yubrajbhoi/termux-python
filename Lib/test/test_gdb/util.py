@@ -7,7 +7,6 @@ import sys
 import sysconfig
 import unittest
 from test import support
-from test.support.testcase import ExtraAssertions
 
 
 GDB_PROGRAM = shutil.which('gdb') or 'gdb'
@@ -153,7 +152,7 @@ def setup_module():
         print()
 
 
-class DebuggerTests(unittest.TestCase, ExtraAssertions):
+class DebuggerTests(unittest.TestCase):
 
     """Test that the debugger can debug Python."""
 

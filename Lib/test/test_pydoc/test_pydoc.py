@@ -11,7 +11,6 @@ import keyword
 import _pickle
 import pkgutil
 import re
-import stat
 import tempfile
 import test.support
 import time
@@ -33,7 +32,7 @@ from test.support.script_helper import (assert_python_ok,
                                         assert_python_failure, spawn_python)
 from test.support import threading_helper
 from test.support import (reap_children, captured_stdout,
-                          captured_stderr, is_emscripten, is_wasi,
+                          captured_stderr, is_wasm32,
                           requires_docstrings, MISSING_C_DOCSTRINGS)
 from test.support.os_helper import (TESTFN, rmtree, unlink)
 from test.test_pydoc import pydoc_mod
@@ -88,8 +87,6 @@ CLASSES
      |  Data and other attributes defined here:
      |
      |  NO_MEANING = 'eggs'
-     |
-     |  __annotations__ = {'NO_MEANING': <class 'str'>}
 
     class C(builtins.object)
      |  Methods defined here:
@@ -130,7 +127,7 @@ DATA
     c_alias = test.test_pydoc.pydoc_mod.C[int]
     list_alias1 = typing.List[int]
     list_alias2 = list[int]
-    type_union1 = typing.Union[int, str]
+    type_union1 = int | str
     type_union2 = int | str
 
 VERSION
@@ -185,7 +182,6 @@ class B(builtins.object)
     ----------------------------------------------------------------------
     Data and other attributes defined here:
         NO_MEANING = 'eggs'
-        __annotations__ = {'NO_MEANING': <class 'str'>}
 
 
 class C(builtins.object)
@@ -218,7 +214,7 @@ Data
     c_alias = test.test_pydoc.pydoc_mod.C[int]
     list_alias1 = typing.List[int]
     list_alias2 = list[int]
-    type_union1 = typing.Union[int, str]
+    type_union1 = int | str
     type_union2 = int | str
 
 Author
@@ -459,6 +455,14 @@ class PydocDocTest(unittest.TestCase):
         doc = pydoc.render_doc(BinaryInteger)
         self.assertIn('BinaryInteger.zero', doc)
 
+    def test_slotted_dataclass_with_field_docs(self):
+        import dataclasses
+        @dataclasses.dataclass(slots=True)
+        class My:
+            x: int = dataclasses.field(doc='Docstring for x')
+        doc = pydoc.render_doc(My)
+        self.assertIn('Docstring for x', doc)
+
     def test_mixed_case_module_names_are_lower_cased(self):
         # issue16484
         doc_link = get_pydoc_link(xml.etree.ElementTree)
@@ -543,6 +547,14 @@ class PydocDocTest(unittest.TestCase):
          |      ... and 82 other subclasses
         """
         doc = pydoc.TextDoc()
+        try:
+            # Make sure HeapType, which has no __module__ attribute, is one
+            # of the known subclasses of object. (doc.docclass() used to
+            # fail if HeapType was imported before running this test, like
+            # when running tests sequentially.)
+            from _testcapi import HeapType
+        except ImportError:
+            pass
         text = doc.docclass(object)
         snip = (" |  Built-in subclasses:\n"
                 " |      async_generator\n"
@@ -772,9 +784,16 @@ class PydocDocTest(unittest.TestCase):
                         'Help on function help in module pydoc:')
         run_pydoc_pager('str', 'str', 'Help on class str in module builtins:')
         run_pydoc_pager(str, 'str', 'Help on class str in module builtins:')
-        run_pydoc_pager('str.upper', 'str.upper', 'Help on method_descriptor in str:')
-        run_pydoc_pager(str.upper, 'str.upper', 'Help on method_descriptor:')
-        run_pydoc_pager(str.__add__, 'str.__add__', 'Help on wrapper_descriptor:')
+        run_pydoc_pager('str.upper', 'str.upper',
+                        'Help on method descriptor upper in str:')
+        run_pydoc_pager(str.upper, 'str.upper',
+                        'Help on method descriptor upper:')
+        run_pydoc_pager(''.upper, 'str.upper',
+                        'Help on built-in function upper:')
+        run_pydoc_pager(str.__add__,
+                        'str.__add__', 'Help on method descriptor __add__:')
+        run_pydoc_pager(''.__add__,
+                        'str.__add__', 'Help on method wrapper __add__:')
         run_pydoc_pager(int.numerator, 'int.numerator',
                         'Help on getset descriptor builtins.int.numerator:')
         run_pydoc_pager(list[int], 'list',
@@ -1130,7 +1149,7 @@ class B(A)
 
 class A(builtins.object)
  |  A(
- |      arg1: collections.abc.Callable[[int, int, int], str],
+ |      arg1: Callable[[int, int, int], str],
  |      arg2: Literal['some value', 'other value'],
  |      arg3: Annotated[int, 'some docs about this type']
  |  ) -> None
@@ -1139,7 +1158,7 @@ class A(builtins.object)
  |
  |  __init__(
  |      self,
- |      arg1: collections.abc.Callable[[int, int, int], str],
+ |      arg1: Callable[[int, int, int], str],
  |      arg2: Literal['some value', 'other value'],
  |      arg3: Annotated[int, 'some docs about this type']
  |  ) -> None
@@ -1166,7 +1185,7 @@ class A(builtins.object)
         self.assertEqual(doc, '''Python Library Documentation: function func in module %s
 
 func(
-    arg1: collections.abc.Callable[[typing.Annotated[int, 'Some doc']], str],
+    arg1: Callable[[Annotated[int, 'Some doc']], str],
     arg2: Literal[1, 2, 3, 4, 5, 6, 7, 8]
 ) -> Annotated[int, 'Some other']
 ''' % __name__)
@@ -1280,8 +1299,6 @@ class PydocImportTest(PydocBaseTest):
         self.assertEqual(out.getvalue(), '')
         self.assertEqual(err.getvalue(), '')
 
-    @os_helper.skip_unless_working_chmod
-    @unittest.skipIf(is_emscripten, "cannot remove x bit")
     def test_apropos_empty_doc(self):
         pkgdir = os.path.join(TESTFN, 'walkpkg')
         os.mkdir(pkgdir)
@@ -1289,14 +1306,9 @@ class PydocImportTest(PydocBaseTest):
         init_path = os.path.join(pkgdir, '__init__.py')
         with open(init_path, 'w') as fobj:
             fobj.write("foo = 1")
-        current_mode = stat.S_IMODE(os.stat(pkgdir).st_mode)
-        try:
-            os.chmod(pkgdir, current_mode & ~stat.S_IEXEC)
-            with self.restrict_walk_packages(path=[TESTFN]), captured_stdout() as stdout:
-                pydoc.apropos('')
-            self.assertIn('walkpkg', stdout.getvalue())
-        finally:
-            os.chmod(pkgdir, current_mode)
+        with self.restrict_walk_packages(path=[TESTFN]), captured_stdout() as stdout:
+            pydoc.apropos('')
+        self.assertIn('walkpkg', stdout.getvalue())
 
     def test_url_search_package_error(self):
         # URL handler search should cope with packages that raise exceptions
@@ -1311,7 +1323,8 @@ class PydocImportTest(PydocBaseTest):
             sys.path.insert(0, TESTFN)
             try:
                 with self.assertRaisesRegex(ValueError, "ouch"):
-                    import test_error_package  # Sanity check
+                    # Sanity check
+                    import test_error_package  # noqa: F401
 
                 text = self.call_url_handler("search?key=test_error_package",
                     "Pydoc: Search Results")
@@ -1360,7 +1373,7 @@ class PydocImportTest(PydocBaseTest):
             helper('modules garbage')
         result = help_io.getvalue()
 
-        self.assertTrue(result.startswith(expected))
+        self.assertStartsWith(result, expected)
 
     def test_importfile(self):
         try:
@@ -1419,17 +1432,17 @@ class TestDescriptions(unittest.TestCase):
             self.assertIn(list.__doc__.strip().splitlines()[0], doc)
 
     def test_union_type(self):
-        self.assertEqual(pydoc.describe(typing.Union[int, str]), '_UnionGenericAlias')
+        self.assertEqual(pydoc.describe(typing.Union[int, str]), 'Union')
         doc = pydoc.render_doc(typing.Union[int, str], renderer=pydoc.plaintext)
-        self.assertIn('_UnionGenericAlias in module typing', doc)
-        self.assertIn('Union = typing.Union', doc)
+        self.assertIn('Union in module typing', doc)
+        self.assertIn('class Union(builtins.object)', doc)
         if typing.Union.__doc__:
             self.assertIn(typing.Union.__doc__.strip().splitlines()[0], doc)
 
-        self.assertEqual(pydoc.describe(int | str), 'UnionType')
+        self.assertEqual(pydoc.describe(int | str), 'Union')
         doc = pydoc.render_doc(int | str, renderer=pydoc.plaintext)
-        self.assertIn('UnionType in module types object', doc)
-        self.assertIn('\nclass UnionType(builtins.object)', doc)
+        self.assertIn('Union in module typing', doc)
+        self.assertIn('class Union(builtins.object)', doc)
         if not MISSING_C_DOCSTRINGS:
             self.assertIn(types.UnionType.__doc__.strip().splitlines()[0], doc)
 
@@ -1450,8 +1463,8 @@ class TestDescriptions(unittest.TestCase):
         T = typing.TypeVar('T')
         class C(typing.Generic[T], typing.Mapping[int, str]): ...
         self.assertEqual(pydoc.render_doc(foo).splitlines()[-1],
-                         'f\x08fo\x08oo\x08o(data: List[Any], x: int)'
-                         ' -> Iterator[Tuple[int, Any]]')
+                         'f\x08fo\x08oo\x08o(data: typing.List[typing.Any], x: int)'
+                         ' -> typing.Iterator[typing.Tuple[int, typing.Any]]')
         self.assertEqual(pydoc.render_doc(C).splitlines()[2],
                          'class C\x08C(collections.abc.Mapping, typing.Generic)')
 
@@ -2056,7 +2069,7 @@ class PydocFodderTest(unittest.TestCase):
 
 
 @unittest.skipIf(
-    is_emscripten or is_wasi,
+    is_wasm32,
     "Socket server not available on Emscripten/WASI."
 )
 class PydocServerTest(unittest.TestCase):

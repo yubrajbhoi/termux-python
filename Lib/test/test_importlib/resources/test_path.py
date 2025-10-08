@@ -4,7 +4,6 @@ import unittest
 
 from importlib import resources
 from . import util
-from test.support.testcase import ExtraAssertions
 
 
 class CommonTests(util.CommonTests, unittest.TestCase):
@@ -13,7 +12,7 @@ class CommonTests(util.CommonTests, unittest.TestCase):
             pass
 
 
-class PathTests(ExtraAssertions):
+class PathTests:
     def test_reading(self):
         """
         Path should be readable and a pathlib.Path instance.

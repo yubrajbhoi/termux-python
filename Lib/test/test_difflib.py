@@ -29,6 +29,16 @@ class TestWithAscii(unittest.TestCase):
                 ('delete', 40, 41, 40, 40),
                 ('equal', 41, 81, 40, 80)])
 
+    def test_opcode_caching(self):
+        sm = difflib.SequenceMatcher(None, 'b' * 100, 'a' + 'b' * 100)
+        opcode = sm.get_opcodes()
+        self.assertEqual(opcode,
+            [   ('insert', 0, 0, 0, 1),
+                ('equal', 0, 100, 1, 101)])
+        # Implementation detail: opcodes are cached;
+        # `get_opcodes()` returns the same object
+        self.assertIs(opcode, sm.get_opcodes())
+
     def test_bjunk(self):
         sm = difflib.SequenceMatcher(isjunk=lambda x: x == ' ',
                 a='a' * 40 + 'b' * 40, b='a' * 44 + 'b' * 40)
@@ -272,10 +282,39 @@ class TestSFpatches(unittest.TestCase):
         self.assertIn('content="text/html; charset=us-ascii"', output)
         self.assertIn('&#305;mpl&#305;c&#305;t', output)
 
+class TestDiffer(unittest.TestCase):
+    def test_close_matches_aligned(self):
+        # Of the 4 closely matching pairs, we want 1 to match with 3,
+        # and 2 with 4, to align with a "top to bottom" mental model.
+        a = ["cat\n", "dog\n", "close match 1\n", "close match 2\n"]
+        b = ["close match 3\n", "close match 4\n", "kitten\n", "puppy\n"]
+        m = difflib.Differ().compare(a, b)
+        self.assertEqual(list(m),
+                           ['- cat\n',
+                            '- dog\n',
+                            '- close match 1\n',
+                            '?             ^\n',
+                            '+ close match 3\n',
+                            '?             ^\n',
+                            '- close match 2\n',
+                            '?             ^\n',
+                            '+ close match 4\n',
+                            '?             ^\n',
+                            '+ kitten\n',
+                            '+ puppy\n'])
+
+    def test_one_insert(self):
+        m = difflib.Differ().compare('b' * 2, 'a' + 'b' * 2)
+        self.assertEqual(list(m), ['+ a', '  b', '  b'])
+
+    def test_one_delete(self):
+        m = difflib.Differ().compare('a' + 'b' * 2, 'b' * 2)
+        self.assertEqual(list(m), ['- a', '  b', '  b'])
+
 
 class TestOutputFormat(unittest.TestCase):
     def test_tab_delimiter(self):
-        args = ['one', 'two', 'Original', 'Current',
+        args = [['one'], ['two'], 'Original', 'Current',
             '2005-01-26 23:30:50', '2010-04-02 10:20:52']
         ud = difflib.unified_diff(*args, lineterm='')
         self.assertEqual(list(ud)[0:2], [
@@ -287,7 +326,7 @@ class TestOutputFormat(unittest.TestCase):
                            "--- Current\t2010-04-02 10:20:52"])
 
     def test_no_trailing_tab_on_empty_filedate(self):
-        args = ['one', 'two', 'Original', 'Current']
+        args = [['one'], ['two'], 'Original', 'Current']
         ud = difflib.unified_diff(*args, lineterm='')
         self.assertEqual(list(ud)[0:2], ["--- Original", "+++ Current"])
 
@@ -427,6 +466,28 @@ class TestBytes(unittest.TestCase):
                                     lineterm=b'')
         assertDiff(expect, actual)
 
+
+class TestInputTypes(unittest.TestCase):
+    def _assert_type_error(self, msg, generator, *args):
+        with self.assertRaises(TypeError) as ctx:
+            list(generator(*args))
+        self.assertEqual(msg, str(ctx.exception))
+
+    def test_input_type_checks(self):
+        unified = difflib.unified_diff
+        context = difflib.context_diff
+
+        expect = "input must be a sequence of strings, not str"
+        self._assert_type_error(expect, unified, 'a', ['b'])
+        self._assert_type_error(expect, context, 'a', ['b'])
+
+        self._assert_type_error(expect, unified, ['a'], 'b')
+        self._assert_type_error(expect, context, ['a'], 'b')
+
+        expect = "lines to compare must be str, not NoneType (None)"
+        self._assert_type_error(expect, unified, ['a'], [None])
+        self._assert_type_error(expect, context, ['a'], [None])
+
     def test_mixed_types_content(self):
         # type of input content must be consistent: all str or all bytes
         a = [b'hello']
@@ -475,10 +536,6 @@ class TestBytes(unittest.TestCase):
         b = ['bar\n']
         list(difflib.unified_diff(a, b, 'a', 'b', datea, dateb))
 
-    def _assert_type_error(self, msg, generator, *args):
-        with self.assertRaises(TypeError) as ctx:
-            list(generator(*args))
-        self.assertEqual(msg, str(ctx.exception))
 
 class TestJunkAPIs(unittest.TestCase):
     def test_is_line_junk_true(self):
@@ -545,6 +602,26 @@ class TestFindLongest(unittest.TestCase):
         self.assertEqual(a[match.a: match.a + match.size],
                          b[match.b: match.b + match.size])
         self.assertFalse(self.longer_match_exists(a, b, match.size))
+
+
+class TestCloseMatches(unittest.TestCase):
+    # Happy paths are tested in the doctests of `difflib.get_close_matches`.
+
+    def test_invalid_inputs(self):
+        self.assertRaises(ValueError, difflib.get_close_matches, "spam", ['egg'], n=0)
+        self.assertRaises(ValueError, difflib.get_close_matches, "spam", ['egg'], n=-1)
+        self.assertRaises(ValueError, difflib.get_close_matches, "spam", ['egg'], cutoff=1.1)
+        self.assertRaises(ValueError, difflib.get_close_matches, "spam", ['egg'], cutoff=-0.1)
+
+
+class TestRestore(unittest.TestCase):
+    # Happy paths are tested in the doctests of `difflib.restore`.
+
+    def test_invalid_input(self):
+        with self.assertRaises(ValueError):
+            ''.join(difflib.restore([], 0))
+        with self.assertRaises(ValueError):
+            ''.join(difflib.restore([], 3))
 
 
 def setUpModule():

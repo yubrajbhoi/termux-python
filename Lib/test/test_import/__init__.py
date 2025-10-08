@@ -35,12 +35,13 @@ from test.support import (
     cpython_only,
     is_apple_mobile,
     is_emscripten,
-    is_wasi,
+    is_wasm32,
     run_in_subinterp,
     run_in_subinterp_with_config,
     Py_TRACE_REFS,
     requires_gil_enabled,
     Py_GIL_DISABLED,
+    no_rerun,
     force_not_colorized_test_class,
 )
 from test.support.import_helper import (
@@ -50,7 +51,6 @@ from test.support.os_helper import (
     TESTFN, rmtree, temp_umask, TESTFN_UNENCODABLE)
 from test.support import script_helper
 from test.support import threading_helper
-from test.support.testcase import ExtraAssertions
 from test.test_importlib.util import uncache
 from types import ModuleType
 try:
@@ -148,25 +148,6 @@ def remove_files(name):
               name + "$py.class"):
         unlink(f)
     rmtree('__pycache__')
-
-
-def no_rerun(reason):
-    """Skip rerunning for a particular test.
-
-    WARNING: Use this decorator with care; skipping rerunning makes it
-    impossible to find reference leaks. Provide a clear reason for skipping the
-    test using the 'reason' parameter.
-    """
-    def deco(func):
-        _has_run = False
-        def wrapper(self):
-            nonlocal _has_run
-            if _has_run:
-                self.skipTest(reason)
-            func(self)
-            _has_run = True
-        return wrapper
-    return deco
 
 
 if _testsinglephase is not None:
@@ -365,7 +346,7 @@ class ModuleSnapshot(types.SimpleNamespace):
 
 
 @force_not_colorized_test_class
-class ImportTests(unittest.TestCase, ExtraAssertions):
+class ImportTests(unittest.TestCase):
 
     def setUp(self):
         remove_files(TESTFN)
@@ -459,7 +440,7 @@ class ImportTests(unittest.TestCase, ExtraAssertions):
 
     def test_double_const(self):
         # Importing double_const checks that float constants
-        # serialiazed by marshal as PYC files don't lose precision
+        # serialized by marshal as PYC files don't lose precision
         # (SF bug 422177).
         from test.test_import.data import double_const
         unload('test.test_import.data.double_const')
@@ -1020,7 +1001,7 @@ from not_a_module import symbol
 
                 expected_error = error + (
                     rb" \(consider renaming '.*numpy.py' if it has the "
-                    rb"same name as a library you intended to import\)\s+\Z"
+                    rb"same name as a library you intended to import\)\s+\z"
                 )
 
                 popen = script_helper.spawn_python(os.path.join(tmp, "numpy.py"))
@@ -1041,14 +1022,14 @@ from not_a_module import symbol
                 f.write("this_script_does_not_attempt_to_import_numpy = True")
 
             expected_error = (
-                rb"AttributeError: module 'numpy' has no attribute 'attr'\s+\Z"
+                rb"AttributeError: module 'numpy' has no attribute 'attr'\s+\z"
             )
             popen = script_helper.spawn_python('-c', 'import numpy; numpy.attr', cwd=tmp)
             stdout, stderr = popen.communicate()
             self.assertRegex(stdout, expected_error)
 
             expected_error = (
-                rb"ImportError: cannot import name 'attr' from 'numpy' \(.*\)\s+\Z"
+                rb"ImportError: cannot import name 'attr' from 'numpy' \(.*\)\s+\z"
             )
             popen = script_helper.spawn_python('-c', 'from numpy import attr', cwd=tmp)
             stdout, stderr = popen.communicate()
@@ -1074,7 +1055,7 @@ except TypeError as e:
 """)
             popen = script_helper.spawn_python("main.py", cwd=tmp)
             stdout, stderr = popen.communicate()
-            self.assertEqual(stdout.rstrip(), b"unhashable type: 'substr'")
+            self.assertIn(b"unhashable type: 'substr'", stdout.rstrip())
 
             with open(os.path.join(tmp, "main.py"), "w", encoding='utf-8') as f:
                 f.write("""
@@ -1091,7 +1072,7 @@ except TypeError as e:
 
             popen = script_helper.spawn_python("main.py", cwd=tmp)
             stdout, stderr = popen.communicate()
-            self.assertEqual(stdout.rstrip(), b"unhashable type: 'substr'")
+            self.assertIn(b"unhashable type: 'substr'", stdout.rstrip())
 
             # Various issues with sys module
             with open(os.path.join(tmp, "main.py"), "w", encoding='utf-8') as f:
@@ -1276,7 +1257,7 @@ class FilePermissionTests(unittest.TestCase):
     @unittest.skipUnless(os.name == 'posix',
                          "test meaningful only on posix systems")
     @unittest.skipIf(
-        is_emscripten or is_wasi,
+        is_wasm32,
         "Emscripten's/WASI's umask is a stub."
     )
     def test_creation_mode(self):
@@ -1369,7 +1350,7 @@ class PycRewritingTests(unittest.TestCase):
 import sys
 code_filename = sys._getframe().f_code.co_filename
 module_filename = __file__
-constant = 1
+constant = 1000
 def func():
     pass
 func_filename = func.__code__.co_filename
@@ -1438,7 +1419,7 @@ func_filename = func.__code__.co_filename
             code = marshal.load(f)
         constants = list(code.co_consts)
         foreign_code = importlib.import_module.__code__
-        pos = constants.index(1)
+        pos = constants.index(1000)
         constants[pos] = foreign_code
         code = code.replace(co_consts=tuple(constants))
         with open(self.compiled_name, "wb") as f:
@@ -1448,7 +1429,7 @@ func_filename = func.__code__.co_filename
         self.assertEqual(mod.constant.co_filename, foreign_code.co_filename)
 
 
-class PathsTests(unittest.TestCase, ExtraAssertions):
+class PathsTests(unittest.TestCase):
     SAMPLES = ('test', 'test\u00e4\u00f6\u00fc\u00df', 'test\u00e9\u00e8',
                'test\u00b0\u00b3\u00b2')
     path = TESTFN
@@ -1502,7 +1483,7 @@ class PathsTests(unittest.TestCase, ExtraAssertions):
         unload("test_unc_path")
 
 
-class RelativeImportTests(unittest.TestCase, ExtraAssertions):
+class RelativeImportTests(unittest.TestCase):
 
     def tearDown(self):
         unload("test.relimport")
@@ -1828,7 +1809,7 @@ class TestSymbolicallyLinkedPackage(unittest.TestCase):
 
 
 @cpython_only
-class ImportlibBootstrapTests(unittest.TestCase, ExtraAssertions):
+class ImportlibBootstrapTests(unittest.TestCase):
     # These tests check that importlib is bootstrapped.
 
     def test_frozen_importlib(self):
@@ -2699,7 +2680,7 @@ class TestSinglePhaseSnapshot(ModuleSnapshot):
 
 
 @requires_singlephase_init
-class SinglephaseInitTests(unittest.TestCase, ExtraAssertions):
+class SinglephaseInitTests(unittest.TestCase):
 
     NAME = '_testsinglephase'
 
@@ -3218,7 +3199,7 @@ class SinglephaseInitTests(unittest.TestCase, ExtraAssertions):
         #  * alive in 1 interpreter (main)
         #  * module def still in _PyRuntime.imports.extensions
         #  * mod init func ran again
-        #  * m_copy is NULL (claered when the interpreter was destroyed)
+        #  * m_copy is NULL (cleared when the interpreter was destroyed)
         #    (was from main interpreter)
         #  * module's global state was updated, not reset
 
@@ -3353,7 +3334,7 @@ class SinglephaseInitTests(unittest.TestCase, ExtraAssertions):
         #  * alive in 0 interpreters
         #  * module def in _PyRuntime.imports.extensions
         #  * mod init func ran for the first time (since reset, at least)
-        #  * m_copy is NULL (claered when the interpreter was destroyed)
+        #  * m_copy is NULL (cleared when the interpreter was destroyed)
         #  * module's global state was initialized, not reset
 
         # Use a subinterpreter that sticks around.
@@ -3379,6 +3360,17 @@ class SinglephaseInitTests(unittest.TestCase, ExtraAssertions):
         #  * mod init func ran again
         #  * m_copy was copied from interp2 (was from interp1)
         #  * module's global state was initialized, not reset
+
+
+@cpython_only
+class TestMagicNumber(unittest.TestCase):
+    def test_magic_number_endianness(self):
+        magic_number_bytes = _imp.pyc_magic_number_token.to_bytes(4, 'little')
+        self.assertEqual(magic_number_bytes[2:], b'\r\n')
+        # Starting with Python 3.11, Python 3.n starts with magic number 2900+50n.
+        magic_number = int.from_bytes(magic_number_bytes[:2], 'little')
+        start = 2900 + sys.version_info.minor * 50
+        self.assertIn(magic_number, range(start, start + 50))
 
 
 if __name__ == '__main__':

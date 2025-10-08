@@ -55,6 +55,11 @@ get_grp_state(PyObject *module)
 
 static struct PyModuleDef grpmodule;
 
+/* Mutex to protect calls to getgrgid(), getgrnam(), and getgrent().
+ * These functions return pointer to static data structure, which
+ * may be overwritten by any subsequent calls. */
+static PyMutex group_db_mutex = {0};
+
 #define DEFAULT_BUFFER_SIZE 1024
 
 static PyObject *
@@ -109,15 +114,20 @@ mkgrent(PyObject *module, struct group *p)
     return v;
 }
 
-static PyObject *
-grp_getgrgid(PyObject *module, PyObject *args, PyObject *kwargs)
-{
-    static char *kwlist[] = {"id", NULL};
-    PyObject *id;
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O", kwlist, &id)) {
-        return NULL;
-    }
+/*[clinic input]
+grp.getgrgid
 
+    id: object
+
+Return the group database entry for the given numeric group ID.
+
+If id is not valid, raise KeyError.
+[clinic start generated code]*/
+
+static PyObject *
+grp_getgrgid_impl(PyObject *module, PyObject *id)
+/*[clinic end generated code: output=30797c289504a1ba input=15fa0e2ccf5cda25]*/
+{
     PyObject *retval = NULL;
     int nomem = 0;
     char *buf = NULL, *buf2 = NULL;
@@ -163,9 +173,15 @@ grp_getgrgid(PyObject *module, PyObject *args, PyObject *kwargs)
 
     Py_END_ALLOW_THREADS
 #else
+    PyMutex_Lock(&group_db_mutex);
+    // The getgrgid() function need not be thread-safe.
+    // https://pubs.opengroup.org/onlinepubs/9699919799/functions/getgrgid.html
     p = getgrgid(gid);
 #endif
     if (p == NULL) {
+#ifndef HAVE_GETGRGID_R
+        PyMutex_Unlock(&group_db_mutex);
+#endif
         PyMem_RawFree(buf);
         if (nomem == 1) {
             return PyErr_NoMemory();
@@ -180,18 +196,11 @@ grp_getgrgid(PyObject *module, PyObject *args, PyObject *kwargs)
     retval = mkgrent(module, p);
 #ifdef HAVE_GETGRGID_R
     PyMem_RawFree(buf);
+#else
+    PyMutex_Unlock(&group_db_mutex);
 #endif
     return retval;
 }
-
-PyDoc_STRVAR(grp_getgrgid__doc__,
-"getgrgid($module, /, id)\n"
-"--\n"
-"\n"
-"Return the group database entry for the given numeric group ID.\n"
-"\n"
-"If id is not valid, raise KeyError.");
-
 
 /*[clinic input]
 grp.getgrnam
@@ -253,9 +262,15 @@ grp_getgrnam_impl(PyObject *module, PyObject *name)
 
     Py_END_ALLOW_THREADS
 #else
+    PyMutex_Lock(&group_db_mutex);
+    // The getgrnam() function need not be thread-safe.
+    // https://pubs.opengroup.org/onlinepubs/9699919799/functions/getgrnam.html
     p = getgrnam(name_chars);
 #endif
     if (p == NULL) {
+#ifndef HAVE_GETGRNAM_R
+        PyMutex_Unlock(&group_db_mutex);
+#endif
         if (nomem == 1) {
             PyErr_NoMemory();
         }
@@ -265,6 +280,9 @@ grp_getgrnam_impl(PyObject *module, PyObject *name)
         goto out;
     }
     retval = mkgrent(module, p);
+#ifndef HAVE_GETGRNAM_R
+    PyMutex_Unlock(&group_db_mutex);
+#endif
 out:
     PyMem_RawFree(buf);
     Py_DECREF(bytes);
@@ -289,8 +307,7 @@ grp_getgrall_impl(PyObject *module)
         return NULL;
     }
 
-    static PyMutex getgrall_mutex = {0};
-    PyMutex_Lock(&getgrall_mutex);
+    PyMutex_Lock(&group_db_mutex);
     setgrent();
 
     struct group *p;
@@ -310,12 +327,12 @@ grp_getgrall_impl(PyObject *module)
 
 done:
     endgrent();
-    PyMutex_Unlock(&getgrall_mutex);
+    PyMutex_Unlock(&group_db_mutex);
     return d;
 }
 
 static PyMethodDef grp_methods[] = {
-    {"getgrgid", _PyCFunction_CAST(grp_getgrgid), METH_VARARGS|METH_KEYWORDS, grp_getgrgid__doc__},
+    GRP_GETGRGID_METHODDEF
     GRP_GETGRNAM_METHODDEF
     GRP_GETGRALL_METHODDEF
     {NULL, NULL}

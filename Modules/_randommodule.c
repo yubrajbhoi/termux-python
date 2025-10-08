@@ -117,6 +117,7 @@ typedef struct {
     uint32_t state[N];
 } RandomObject;
 
+#define RandomObject_CAST(op)   ((RandomObject *)(op))
 
 #include "clinic/_randommodule.c.h"
 
@@ -295,7 +296,8 @@ random_seed(RandomObject *self, PyObject *arg)
     int result = -1;  /* guilty until proved innocent */
     PyObject *n = NULL;
     uint32_t *key = NULL;
-    size_t bits, keyused;
+    int64_t bits;
+    size_t keyused;
     int res;
 
     if (arg == NULL || arg == Py_None) {
@@ -334,11 +336,11 @@ random_seed(RandomObject *self, PyObject *arg)
 
     /* Now split n into 32-bit chunks, from the right. */
     bits = _PyLong_NumBits(n);
-    if (bits == (size_t)-1 && PyErr_Occurred())
-        goto Done;
+    assert(bits >= 0);
+    assert(!PyErr_Occurred());
 
     /* Figure out how many 32-bit chunks this gives us. */
-    keyused = bits == 0 ? 1 : (bits - 1) / 32 + 1;
+    keyused = bits == 0 ? 1 : (size_t)((bits - 1) / 32 + 1);
 
     /* Convert seed to byte sequence. */
     key = (uint32_t *)PyMem_Malloc((size_t)4 * keyused);
@@ -495,26 +497,20 @@ _random_Random_setstate_impl(RandomObject *self, PyObject *state)
 _random.Random.getrandbits
 
   self: self(type="RandomObject *")
-  k: long_long
+  k: uint64
   /
 
 getrandbits(k) -> x.  Generates an int with k random bits.
 [clinic start generated code]*/
 
 static PyObject *
-_random_Random_getrandbits_impl(RandomObject *self, long long k)
-/*[clinic end generated code: output=c2c02a7b0bfdf7f7 input=834d0fe668b981e4]*/
+_random_Random_getrandbits_impl(RandomObject *self, uint64_t k)
+/*[clinic end generated code: output=c30ef8435f3433cf input=64226ac13bb4d2a3]*/
 {
     Py_ssize_t i, words;
     uint32_t r;
     uint32_t *wordarray;
     PyObject *result;
-
-    if (k < 0) {
-        PyErr_SetString(PyExc_ValueError,
-                        "number of bits must be non-negative");
-        return NULL;
-    }
 
     if (k == 0)
         return PyLong_FromLong(0);
@@ -554,7 +550,7 @@ _random_Random_getrandbits_impl(RandomObject *self, long long k)
 }
 
 static int
-random_init(RandomObject *self, PyObject *args, PyObject *kwds)
+random_init(PyObject *self, PyObject *args, PyObject *kwds)
 {
     PyObject *arg = NULL;
     _randomstate *state = _randomstate_type(Py_TYPE(self));
@@ -573,7 +569,7 @@ random_init(RandomObject *self, PyObject *args, PyObject *kwds)
     if (PyTuple_GET_SIZE(args) == 1)
         arg = PyTuple_GET_ITEM(args, 0);
 
-    return random_seed(self, arg);
+    return random_seed(RandomObject_CAST(self), arg);
 }
 
 
@@ -668,7 +664,7 @@ _random_clear(PyObject *module)
 static void
 _random_free(void *module)
 {
-    _random_clear((PyObject *)module);
+    (void)_random_clear((PyObject *)module);
 }
 
 static struct PyModuleDef _randommodule = {

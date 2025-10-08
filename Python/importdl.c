@@ -2,13 +2,13 @@
 /* Support for dynamic loading of extension modules */
 
 #include "Python.h"
-#include "pycore_call.h"
-#include "pycore_import.h"
-#include "pycore_pyerrors.h"      // _PyErr_FormatFromCause()
-#include "pycore_pystate.h"
-#include "pycore_runtime.h"
-
+#include "pycore_call.h"          // _PyObject_CallMethod()
+#include "pycore_import.h"        // _PyImport_SwapPackageContext()
 #include "pycore_importdl.h"
+#include "pycore_moduleobject.h"  // _PyModule_GetDef()
+#include "pycore_pyerrors.h"      // _PyErr_FormatFromCause()
+#include "pycore_runtime.h"       // _Py_ID()
+
 
 /* ./configure sets HAVE_DYNAMIC_LOADING if dynamic loading of modules is
    supported on this platform. configure will then compile and link in one
@@ -252,14 +252,14 @@ _Py_ext_module_loader_result_set_error(
 {
 #ifndef NDEBUG
     switch (kind) {
-    case _Py_ext_module_loader_result_EXCEPTION:  /* fall through */
+    case _Py_ext_module_loader_result_EXCEPTION: _Py_FALLTHROUGH;
     case _Py_ext_module_loader_result_ERR_UNREPORTED_EXC:
         assert(PyErr_Occurred());
         break;
-    case _Py_ext_module_loader_result_ERR_MISSING:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_UNINITIALIZED:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NOT_MODULE:  /* fall through */
+    case _Py_ext_module_loader_result_ERR_MISSING: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_UNINITIALIZED: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NOT_MODULE: _Py_FALLTHROUGH;
     case _Py_ext_module_loader_result_ERR_MISSING_DEF:
         assert(!PyErr_Occurred());
         break;
@@ -283,11 +283,11 @@ _Py_ext_module_loader_result_set_error(
         res->kind = _Py_ext_module_kind_INVALID;
         break;
     /* None of the rest affect the result kind. */
-    case _Py_ext_module_loader_result_EXCEPTION:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_MISSING:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_UNREPORTED_EXC:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NOT_MODULE:  /* fall through */
+    case _Py_ext_module_loader_result_EXCEPTION: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_MISSING: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_UNREPORTED_EXC: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NOT_MODULE: _Py_FALLTHROUGH;
     case _Py_ext_module_loader_result_ERR_MISSING_DEF:
         break;
     default:
@@ -311,14 +311,14 @@ _Py_ext_module_loader_result_apply_error(
 
 #ifndef NDEBUG
     switch (err.kind) {
-    case _Py_ext_module_loader_result_EXCEPTION:  /* fall through */
+    case _Py_ext_module_loader_result_EXCEPTION: _Py_FALLTHROUGH;
     case _Py_ext_module_loader_result_ERR_UNREPORTED_EXC:
         assert(err.exc != NULL);
         break;
-    case _Py_ext_module_loader_result_ERR_MISSING:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_UNINITIALIZED:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE:  /* fall through */
-    case _Py_ext_module_loader_result_ERR_NOT_MODULE:  /* fall through */
+    case _Py_ext_module_loader_result_ERR_MISSING: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_UNINITIALIZED: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NONASCII_NOT_MULTIPHASE: _Py_FALLTHROUGH;
+    case _Py_ext_module_loader_result_ERR_NOT_MODULE: _Py_FALLTHROUGH;
     case _Py_ext_module_loader_result_ERR_MISSING_DEF:
         assert(err.exc == NULL);
         break;

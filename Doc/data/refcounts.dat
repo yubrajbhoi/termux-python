@@ -364,8 +364,6 @@ PyComplex_RealAsDouble:PyObject*:op:0:
 PyContext_CheckExact:int:::
 PyContext_CheckExact:PyObject*:o:0:
 
-PyContext_ClearFreeList:int:::
-
 PyContext_Copy:PyObject*::+1:
 PyContext_Copy:PyObject*:ctx:0:
 
@@ -1056,8 +1054,6 @@ PyImport_AddModule:const char*:name::
 PyImport_AddModuleObject:PyObject*::0:reference borrowed from sys.modules
 PyImport_AddModuleObject:PyObject*:name:0:
 
-PyImport_Cleanup:void:::
-
 PyImport_ExecCodeModule:PyObject*::+1:
 PyImport_ExecCodeModule:const char*:name::
 PyImport_ExecCodeModule:PyObject*:co:0:
@@ -1148,6 +1144,9 @@ PyInterpreterState_Clear:PyInterpreterState*:interp::
 PyInterpreterState_Delete:void:::
 PyInterpreterState_Delete:PyInterpreterState*:interp::
 
+PyInterpreterState_GetDict:PyObject*::0:
+PyInterpreterState_GetDict:PyInterpreterState*:interp::
+
 PyInterpreterState_GetID:int64_t:::
 PyInterpreterState_GetID:PyInterpreterState*:interp::
 
@@ -1161,6 +1160,10 @@ PyAIter_Check:PyObject*:o:0:
 
 PyIter_Next:PyObject*::+1:
 PyIter_Next:PyObject*:o:0:
+
+PyIter_NextItem:int:::
+PyIter_NextItem:PyObject*:iter:0:
+PyIter_NextItem:PyObject**:item:+1:
 
 PyIter_Send:int:::
 PyIter_Send:PyObject*:iter:0:
@@ -1309,6 +1312,26 @@ PyLong_FromUnsignedLong:unsignedlong:v::
 
 PyLong_FromVoidPtr:PyObject*::+1:
 PyLong_FromVoidPtr:void*:p::
+
+PyLong_IsPositive:int:::
+PyLong_IsPositive:PyObject*:obj:0:
+
+PyLong_IsNegative:int:::
+PyLong_IsNegative:PyObject*:obj:0:
+
+PyLong_IsZero:int:::
+PyLong_IsZero:PyObject*:obj:0:
+
+PyLong_GetSign:int:::
+PyLong_GetSign:PyObject*:v:0:
+PyLong_GetSign:int*:sign::
+
+PyLong_Export:int:::
+PyLong_Export:PyObject*:obj:0:
+PyLong_Export:PyLongExport*:export_long::
+
+PyLongWriter_Finish:PyObject*::+1:
+PyLongWriter_Finish:PyLongWriter*:writer::
 
 PyMapping_Check:int:::
 PyMapping_Check:PyObject*:o:0:
@@ -1495,9 +1518,6 @@ PyModule_NewObject:PyObject*:name:+1:
 PyModule_SetDocString:int:::
 PyModule_SetDocString:PyObject*:module:0:
 PyModule_SetDocString:const char*:docstring::
-
-PyModuleDef_Init:PyObject*::0:
-PyModuleDef_Init:PyModuleDef*:def::
 
 PyNumber_Absolute:PyObject*::+1:
 PyNumber_Absolute:PyObject*:o:0:
@@ -2438,12 +2458,6 @@ PyUnicode_DATA:PyObject*:o:0:
 PyUnicode_GET_LENGTH:Py_ssize_t:::
 PyUnicode_GET_LENGTH:PyObject*:o:0:
 
-PyUnicode_GET_SIZE:Py_ssize_t:::
-PyUnicode_GET_SIZE:PyObject*:o:0:
-
-PyUnicode_GET_DATA_SIZE:Py_ssize_t:::
-PyUnicode_GET_DATA_SIZE:PyObject*:o:0:
-
 PyUnicode_KIND:int:::
 PyUnicode_KIND:PyObject*:o:0:
 
@@ -2787,6 +2801,14 @@ PyUnicode_FromFormatV:va_list:args::
 PyUnicode_FromOrdinal:PyObject*::+1:
 PyUnicode_FromOrdinal:int:ordinal::
 
+PyUnicode_Append:void:::
+PyUnicode_Append:PyObject**:p_left:0:
+PyUnicode_Append:PyObject*:right::
+
+PyUnicode_AppendAndDel:void:::
+PyUnicode_AppendAndDel:PyObject**:p_left:0:
+PyUnicode_AppendAndDel:PyObject*:right:-1:
+
 PyUnicode_BuildEncodingMap:PyObject*::+1:
 PyUnicode_BuildEncodingMap:PyObject*:string:::
 
@@ -2802,6 +2824,10 @@ PyUnicode_CopyCharacters:Py_ssize_t:to_start::
 PyUnicode_CopyCharacters:PyObject*:from:0:
 PyUnicode_CopyCharacters:Py_ssize_t:from_start::
 PyUnicode_CopyCharacters:Py_ssize_t:how_many::
+
+PyUnicode_Resize:int:::
+PyUnicode_Resize:PyObject**:unicode:0:
+PyUnicode_Resize:Py_ssize_t:length::
 
 PyUnicode_Fill:Py_ssize_t:::
 PyUnicode_Fill:PyObject*:unicode:0:
@@ -3095,3 +3121,11 @@ _Py_c_quot:Py_complex:divisor::
 _Py_c_sum:Py_complex:::
 _Py_c_sum:Py_complex:left::
 _Py_c_sum:Py_complex:right::
+
+PyImport_ImportModuleAttr:PyObject*::+1:
+PyImport_ImportModuleAttr:PyObject*:mod_name:0:
+PyImport_ImportModuleAttr:PyObject*:attr_name:0:
+
+PyImport_ImportModuleAttrString:PyObject*::+1:
+PyImport_ImportModuleAttrString:const char *:mod_name::
+PyImport_ImportModuleAttrString:const char *:attr_name::
