@@ -52,7 +52,7 @@ apt -f install
 These deb packages can be uninstalled as usual like this:
 
 ```
-apt remove python313
+apt remove python314
 ```
 
 You can also install with stow, but it requires a little technical knowledge about how Linux directories work. First download and untar a stow package. You can also use the built from source directory. Replace `package_name` below with the directory use get.
