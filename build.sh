@@ -45,4 +45,4 @@ rm ./target/lib/pkgconfig/python3.pc
 
 rm -r ./target/share
 
-mv target python-3.14.0
+mv target python-3.14.2

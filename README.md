@@ -1,6 +1,6 @@
 # Python 3.14 for Termux
 
-This is a fork of Python-3.14.0 with Termux patches (`termux.patch`) applied.
+This is a fork of Python-3.14.2 with Termux patches (`termux.patch`) applied.
 
 You can build from source or download the DEB packages from below. Unless you know how to build on Linux I would recommend the binary packages.
 
@@ -15,7 +15,7 @@ First make sure you have these dependencies installed with `apt` or `pkg`:
  - `stow`, to install the package after building it
  - `libandroid-spawn`, to get `spawn.h` header file
 
-After that the package can be build with: `bash build.sh`. That will build and install it in `python-3.14.0` directory.
+After that the package can be build with: `bash build.sh`. That will build and install it in `python-3.14.2` directory.
 
 Or you can download a binary package from here:
 
@@ -25,13 +25,13 @@ All the files appended with `t` are the free-threaded version.
 
 ### DEB Packages
 
- - [python314_3.14.0_aarch64.deb](https://public.8018985.xyz/python314_3.14.0_aarch64.deb)
- - [python314t_3.14.0_aarch64.deb](https://public.8018985.xyz/python314t_3.14.0_aarch64.deb)
+ - [python314_3.14.2_aarch64.deb](https://public.8018985.xyz/python314_3.14.2_aarch64.deb)
+ - [python314t_3.14.2_aarch64.deb](https://public.8018985.xyz/python314t_3.14.2_aarch64.deb)
 
 ### Stow packages
 
- - [python_3.14.0_aarch64.tar.zst](https://public.8018985.xyz/python_3.14.0_aarch64.tar.zst)
- - [python_3.14.0t_aarch64.tar.zst](https://public.8018985.xyz/python_3.14.0t_aarch64.tar.zst)
+ - [python_3.14.2_aarch64.tar.zst](https://public.8018985.xyz/python_3.14.2_aarch64.tar.zst)
+ - [python_3.14.2t_aarch64.tar.zst](https://public.8018985.xyz/python_3.14.2t_aarch64.tar.zst)
 
 ## How to install
 
