@@ -6404,74 +6404,17 @@ otherwise any protocol will match.");
    This only returns the protocol number, since the other info is
    already known or not useful (like the list of aliases). */
 
-#ifdef __ANDROID__
-struct protocol_name_and_number {
-    char* name;
-    int number;
-};
-#endif
-
 /*ARGSUSED*/
 static PyObject *
 socket_getprotobyname(PyObject *self, PyObject *args)
 {
-#ifdef __ANDROID__
-    /* http://git.musl-libc.org/cgit/musl/tree/src/network/proto.c */
-    static const struct protocol_name_and_number protocols[] = {
-       {"ip", 0},
-       {"icmp", 1},
-       {"igmp", 2},
-       {"ggp", 3},
-       {"ipencap", 4},
-       {"st", 5},
-       {"tcp", 6},
-       {"egp", 8},
-       {"pup", 12},
-       {"udp", 17},
-       {"hmp", 20},
-       {"xns-idp", 22},
-       {"iso-tp4", 29},
-       {"xtp", 36},
-       {"ddp", 37},
-       {"idpr-cmtp", 38},
-       {"ipv6", 41},
-       {"ipv6-route", 43},
-       {"ipv6-frag", 44},
-       {"idrp", 45},
-       {"rsvp", 46},
-       {"gre", 47},
-       {"esp", 50},
-       {"ah", 51},
-       {"skip", 57},
-       {"ipv6-icmp", 58},
-       {"ipv6-nonxt", 59},
-       {"ipv6-opts", 60},
-       {"rspf", 73},
-       {"vmtp", 81},
-       {"ospf", 89},
-       {"ipip", 94},
-       {"encap", 98},
-       {"pim", 103},
-       {"raw", 255}
-    };
-    int i;
-#endif
     const char *name;
     struct protoent *sp;
     if (!PyArg_ParseTuple(args, "s:getprotobyname", &name))
         return NULL;
-#ifdef __ANDROID__
-    for (i = 0; i < sizeof(protocols) / sizeof(protocols[0]); i++) {
-        if (strcmp(protocols[i].name, name) == 0) {
-            return PyLong_FromLong((long) protocols[i].number);
-        }
-    }
-    sp = NULL;
-#else
     Py_BEGIN_ALLOW_THREADS
     sp = getprotobyname(name);
     Py_END_ALLOW_THREADS
-#endif
     if (sp == NULL) {
         PyErr_SetString(PyExc_OSError, "protocol not found");
         return NULL;
@@ -7318,7 +7261,7 @@ Returns a list of network interface information (index, name) tuples.");
 
 /*[clinic input]
 _socket.if_nametoindex
-    oname: object(converter="PyUnicode_FSConverter")
+    oname: unicode_fs_encoded
     /
 
 Returns the interface index corresponding to the interface name if_name.
@@ -7326,7 +7269,7 @@ Returns the interface index corresponding to the interface name if_name.
 
 static PyObject *
 _socket_if_nametoindex_impl(PyObject *module, PyObject *oname)
-/*[clinic end generated code: output=289a411614f30244 input=01e0f1205307fb77]*/
+/*[clinic end generated code: output=289a411614f30244 input=6125dc20683560cf]*/
 {
 #ifdef MS_WINDOWS
     NET_IFINDEX index;
@@ -7334,11 +7277,10 @@ _socket_if_nametoindex_impl(PyObject *module, PyObject *oname)
     unsigned long index;
 #endif
 
+    errno = ENODEV;  // in case 'if_nametoindex' does not set errno
     index = if_nametoindex(PyBytes_AS_STRING(oname));
-    Py_DECREF(oname);
     if (index == 0) {
-        /* if_nametoindex() doesn't set errno */
-        PyErr_SetString(PyExc_OSError, "no interface with this name");
+        PyErr_SetFromErrno(PyExc_OSError);
         return NULL;
     }
 
@@ -7358,6 +7300,7 @@ static PyObject *
 _socket_if_indextoname_impl(PyObject *module, NET_IFINDEX index)
 /*[clinic end generated code: output=e48bc324993052e0 input=c93f753d0cf6d7d1]*/
 {
+    errno = ENXIO;  // in case 'if_indextoname' does not set errno
     char name[IF_NAMESIZE + 1];
     if (if_indextoname(index, name) == NULL) {
         PyErr_SetFromErrno(PyExc_OSError);
