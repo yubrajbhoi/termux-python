@@ -1844,7 +1844,9 @@ class Popen:
                 args = list(args)
 
             if shell:
-                unix_shell = ('/data/data/com.termux/files/usr/bin/sh')
+                # On Android the default shell is at '/system/bin/sh'.
+                unix_shell = ('/system/bin/sh' if
+                          hasattr(sys, 'getandroidapilevel') else '/bin/sh')
                 args = [unix_shell, "-c"] + args
                 if executable:
                     args[0] = executable
@@ -2139,7 +2141,7 @@ class Popen:
 
                 while selector.get_map():
                     timeout = self._remaining_time(endtime)
-                    if timeout is not None and timeout < 0:
+                    if timeout is not None and timeout <= 0:
                         self._check_timeout(endtime, orig_timeout,
                                             stdout, stderr,
                                             skip_check_and_raise=True)

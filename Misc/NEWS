@@ -2,6 +2,475 @@
 Python News
 +++++++++++
 
+What's New in Python 3.14.3 final?
+==================================
+
+*Release date: 2026-02-03*
+
+Windows
+-------
+
+- gh-128067: Fix a bug in PyREPL on Windows where output without a trailing
+  newline was overwritten by the next prompt.
+
+Tools/Demos
+-----------
+
+- gh-142095: Make gdb 'py-bt' command use frame from thread local state when
+  available. Patch by Sam Gross and Victor Stinner.
+
+Tests
+-----
+
+- gh-144415: The Android testbed now distinguishes between stdout/stderr
+  messages which were triggered by a newline, and those triggered by a
+  manual call to ``flush``. This fixes logging of progress indicators and
+  similar content.
+
+- gh-143460: Skip tests relying on infinite recusion if stack size is
+  unlimited.
+
+- gh-65784: Add support for parametrized resource ``wantobjects`` in
+  regrtests, which allows to run Tkinter tests with the specified value of
+  :data:`!tkinter.wantobjects`, for example ``-u wantobjects=0``.
+
+- gh-143553: Add support for parametrized resources, such as ``-u
+  xpickle=2.7``.
+
+- gh-142836: Accommodated Solaris in
+  ``test_pdb.test_script_target_anonymous_pipe``.
+
+- bpo-31391: Forward-port test_xpickle from Python 2 to Python 3 and add the
+  resource back to test's command line.
+
+Security
+--------
+
+- gh-144125: :mod:`~email.generator.BytesGenerator` will now refuse to
+  serialize (write) headers that are unsafely folded or delimited; see
+  :attr:`~email.policy.Policy.verify_generated_headers`. (Contributed by Bas
+  Bloemsaat and Petr Viktorin in :gh:`121650`).
+
+- gh-143935: Fixed a bug in the folding of comments when flattening an email
+  message using a modern email policy. Comments consisting of a very long
+  sequence of non-foldable characters could trigger a forced line wrap that
+  omitted the required leading space on the continuation line, causing the
+  remainder of the comment to be interpreted as a new header field. This
+  enabled header injection with carefully crafted inputs.
+
+- gh-143925: Reject control characters in ``data:`` URL media types.
+
+- gh-143919: Reject control characters in :class:`http.cookies.Morsel`
+  fields and values.
+
+- gh-143916: Reject C0 control characters within wsgiref.headers.Headers
+  fields, values, and parameters.
+
+Library
+-------
+
+- gh-144380: Improve performance of :class:`io.BufferedReader` line
+  iteration by ~49%.
+
+- gh-144169: Fix three crashes when non-string keyword arguments are
+  supplied to objects in the :mod:`ast` module.
+
+- gh-144100: Fixed a crash in ctypes when using a deprecated
+  ``POINTER(str)`` type in ``argtypes``. Instead of aborting, ctypes now
+  raises a proper Python exception when the pointer target type is
+  unresolved.
+
+- gh-144050: Fix :func:`stat.filemode` in the pure-Python implementation to
+  avoid misclassifying invalid mode values as block devices.
+
+- gh-144023: Fixed validation of file descriptor 0 in posix functions when
+  used with follow_symlinks parameter.
+
+- gh-143999: Fix an issue where :func:`inspect.getgeneratorstate` and
+  :func:`inspect.getcoroutinestate` could fail for generators wrapped by
+  :func:`types.coroutine` in the suspended state.
+
+- gh-143831: :class:`annotationlib.ForwardRef` objects are now hashable when
+  created from annotation scopes with closures. Previously, hashing such
+  objects would throw an exception. Patch by Bartosz Sławecki.
+
+- gh-143874: Fixed a bug in :mod:`pdb` where expression results were not
+  sent back to remote client.
+
+- gh-143880: Fix data race in :func:`functools.partial` in the :term:`free
+  threading` build.
+
+- gh-143706: Fix :mod:`multiprocessing` forkserver so that :data:`sys.argv`
+  is correctly set before ``__main__`` is preloaded. Previously,
+  :data:`sys.argv` was empty during main module import in forkserver child
+  processes. This fixes a regression introduced in 3.13.8 and 3.14.1. Root
+  caused by Aaron Wieczorek, test provided by Thomas Watson, thanks!
+
+- gh-143638: Forbid reentrant calls of the :class:`pickle.Pickler` and
+  :class:`pickle.Unpickler` methods for the C implementation. Previously,
+  this could cause crash or data corruption, now concurrent calls of methods
+  of the same object raise :exc:`RuntimeError`.
+
+- gh-78724: Raise :exc:`RuntimeError`'s when user attempts to call methods
+  on half-initialized :class:`~struct.Struct` objects, For example, created
+  by ``Struct.__new__(Struct)``.  Patch by Sergey B Kirpichev.
+
+- gh-143196: Fix crash when the internal encoder object returned by
+  undocumented function :func:`!json.encoder.c_make_encoder` was called with
+  non-zero second (*_current_indent_level*) argument.
+
+- gh-143191: :func:`_thread.stack_size` now raises :exc:`ValueError` if the
+  stack size is too small. Patch by Victor Stinner.
+
+- gh-143602: Fix a inconsistency issue in :meth:`~io.RawIOBase.write` that
+  leads to unexpected buffer overwrite by deduplicating the buffer exports.
+
+- gh-143547: Fix :func:`sys.unraisablehook` when the hook raises an
+  exception and changes :func:`sys.unraisablehook`: hold a strong reference
+  to the old hook. Patch by Victor Stinner.
+
+- gh-143517: :func:`annotationlib.get_annotations` no longer raises a
+  :exc:`SyntaxError` when evaluating a stringified starred annotation that
+  starts with one or more whitespace characters followed by a ``*``. Patch
+  by Bartosz Sławecki.
+
+- gh-143378: Fix use-after-free crashes when a :class:`~io.BytesIO` object
+  is concurrently mutated during :meth:`~io.RawIOBase.write` or
+  :meth:`~io.IOBase.writelines`.
+
+- gh-143346: Fix incorrect wrapping of the Base64 data in
+  :class:`!plistlib._PlistWriter` when the indent contains a mix of tabs and
+  spaces.
+
+- gh-143310: :mod:`tkinter`: fix a crash when a Python :class:`list` is
+  mutated during the conversion to a Tcl object (e.g., when setting a Tcl
+  variable). Patch by Bénédikt Tran.
+
+- gh-143309: Fix a crash in :func:`os.execve` on non-Windows platforms when
+  given a custom environment mapping which is then mutated during parsing.
+  Patch by Bénédikt Tran.
+
+- gh-143308: :mod:`pickle`: fix use-after-free crashes when a
+  :class:`~pickle.PickleBuffer` is concurrently mutated by a custom buffer
+  callback during pickling. Patch by Bénédikt Tran and Aaron Wieczorek.
+
+- gh-143237: Fix support of named pipes in the rotating :mod:`logging`
+  handlers.
+
+- gh-143249: Fix possible buffer leaks in Windows overlapped I/O on error
+  handling.
+
+- gh-143241: :mod:`zoneinfo`: fix infinite loop in :meth:`ZoneInfo.from_file
+  <zoneinfo.ZoneInfo.from_file>` when parsing a malformed TZif file. Patch
+  by Fatih Celik.
+
+- gh-142830: :mod:`sqlite3`: fix use-after-free crashes when the
+  connection's callbacks are mutated during a callback execution. Patch by
+  Bénédikt Tran.
+
+- gh-143200: :mod:`xml.etree.ElementTree`: fix use-after-free crashes in
+  :meth:`~object.__getitem__` and :meth:`~object.__setitem__` methods of
+  :class:`~xml.etree.ElementTree.Element` when the element is concurrently
+  mutated. Patch by Bénédikt Tran.
+
+- gh-142195: Updated timeout evaluation logic in :mod:`subprocess` to be
+  compatible with deterministic environments like Shadow where time moves
+  exactly as requested.
+
+- gh-142164: Fix the ctypes bitfield overflow error message to report the
+  correct offset and size calculation.
+
+- gh-143145: Fixed a possible reference leak in ctypes when constructing
+  results with multiple output parameters on error.
+
+- gh-122431: Corrected the error message in
+  :func:`readline.append_history_file` to state that ``nelements`` must be
+  non-negative instead of positive.
+
+- gh-143004: Fix a potential use-after-free in
+  :meth:`collections.Counter.update` when user code mutates the Counter
+  during an update.
+
+- gh-143046: The :mod:`asyncio` REPL no longer prints copyright and version
+  messages in the quiet mode (:option:`-q`). Patch by Bartosz Sławecki.
+
+- gh-140648: The :mod:`asyncio` REPL now respects the :option:`-I` flag
+  (isolated mode). Previously, it would load and execute
+  :envvar:`PYTHONSTARTUP` even if the flag was set. Contributed by Bartosz
+  Sławecki.
+
+- gh-142991: Fixed socket operations such as recvfrom() and sendto() for
+  FreeBSD divert(4) socket.
+
+- gh-143010: Fixed a bug in :mod:`mailbox` where the precise timing of an
+  external event could result in the library opening an existing file
+  instead of a file it expected to create.
+
+- gh-142881: Fix concurrent and reentrant call of :func:`atexit.unregister`.
+
+- gh-112127: Fix possible use-after-free in :func:`atexit.unregister` when
+  the callback is unregistered during comparison.
+
+- gh-142783: Fix zoneinfo use-after-free with descriptor _weak_cache. a
+  descriptor as _weak_cache could cause crashes during object creation. The
+  fix ensures proper reference counting for descriptor-provided objects.
+
+- gh-142754: Add the *ownerDocument* attribute to :mod:`xml.dom.minidom`
+  elements and attributes created by directly instantiating the ``Element``
+  or ``Attr`` class. Note that this way of creating nodes is not supported;
+  creator functions like :py:meth:`xml.dom.Document.documentElement` should
+  be used instead.
+
+- gh-142784: The :mod:`asyncio` REPL now properly closes the loop upon the
+  end of interactive session. Previously, it could cause surprising
+  warnings. Contributed by Bartosz Sławecki.
+
+- gh-142555: :mod:`array`: fix a crash in ``a[i] = v`` when converting *i*
+  to an index via :meth:`i.__index__ <object.__index__>` or
+  :meth:`i.__float__ <object.__float__>` mutates the array.
+
+- gh-142594: Fix crash in ``TextIOWrapper.close()`` when the underlying
+  buffer's ``closed`` property calls :meth:`~io.TextIOBase.detach`.
+
+- gh-142451: :mod:`hmac`: Ensure that the :attr:`HMAC.block_size
+  <hmac.HMAC.block_size>` attribute is correctly copied by :meth:`HMAC.copy
+  <hmac.HMAC.copy>`. Patch by Bénédikt Tran.
+
+- gh-142495: :class:`collections.defaultdict` now prioritizes
+  :meth:`~object.__setitem__` when inserting default values from
+  ``default_factory``. This prevents race conditions where a default value
+  would overwrite a value set before ``default_factory`` returns.
+
+- gh-142651: :mod:`unittest.mock`: fix a thread safety issue where
+  :attr:`Mock.call_count <unittest.mock.Mock.call_count>` may return
+  inaccurate values when the mock is called concurrently from multiple
+  threads.
+
+- gh-142595: Added type check during initialization of the :mod:`decimal`
+  module to prevent a crash in case of broken stdlib.  Patch by Sergey B
+  Kirpichev.
+
+- gh-142556: Fix crash when a task gets re-registered during finalization in
+  :mod:`asyncio`. Patch by Kumar Aditya.
+
+- gh-123241: Avoid reference count operations in garbage collection of
+  :mod:`ctypes` objects.
+
+- gh-142517: The non-``compat32`` :mod:`email` policies now correctly handle
+  refolding encoded words that contain bytes that can not be decoded in
+  their specified character set.  Previously this resulted in an encoding
+  exception during folding.
+
+- gh-112527: The help text for required options in :mod:`argparse` no longer
+  extended with " (default: None)".
+
+- gh-142346: Fix usage formatting for mutually exclusive groups in
+  :mod:`argparse` when they are preceded by positional arguments or followed
+  or intermixed with other optional arguments.
+
+- gh-142315: Pdb can now run scripts from anonymous pipes used in process
+  substitution. Patch by Bartosz Sławecki.
+
+- gh-142332: Fix usage formatting for positional arguments in mutually
+  exclusive groups in :mod:`argparse`. in :mod:`argparse`.
+
+- gh-142282: Fix :func:`winreg.QueryValueEx` to not accidentally read
+  garbage buffer under race condition.
+
+- gh-75949: Fix :mod:`argparse` to preserve ``|`` separators in mutually
+  exclusive groups when the usage line wraps due to length.
+
+- gh-142267: Improve :mod:`argparse` performance by caching the formatter
+  used for argument validation.
+
+- gh-68552: ``MisplacedEnvelopeHeaderDefect`` and ``Missing header name``
+  defects are now correctly passed to the ``handle_defect`` method of
+  ``policy`` in :class:`~email.parser.FeedParser`.
+
+- gh-142006: Fix a bug in the :mod:`email.policy.default` folding algorithm
+  which incorrectly resulted in a doubled newline when a line ending at
+  exactly max_line_length was followed by an unfoldable token.
+
+- gh-105836: Fix :meth:`asyncio.run_coroutine_threadsafe` leaving underlying
+  cancelled asyncio task running.
+
+- gh-139971: :mod:`pydoc`: Ensure that the link to the online documentation
+  of a :term:`stdlib` module is correct.
+
+- gh-139262: Some keystrokes can be swallowed in the new ``PyREPL`` on
+  Windows, especially when used together with the ALT key. Fix by Chris
+  Eibl.
+
+- gh-138897: Improved :data:`license`/:data:`copyright`/:data:`credits`
+  display in the :term:`REPL`: now uses a pager.
+
+- gh-79986: Add parsing for ``References`` and ``In-Reply-To`` headers to
+  the :mod:`email` library that parses the header content as lists of
+  message id tokens.  This prevents them from being folded incorrectly.
+
+- gh-136282: Add support for :const:`~configparser.UNNAMED_SECTION` when
+  creating a section via the mapping protocol access
+
+- gh-109263: Starting a process from spawn context in :mod:`multiprocessing`
+  no longer sets the start method globally.
+
+- gh-133253: Fix thread-safety issues in :mod:`linecache`.
+
+- gh-132715: Skip writing objects during marshalling once a failure has
+  occurred.
+
+IDLE
+----
+
+- gh-143774: Better explain the operation of Format / Format Paragraph.
+
+Documentation
+-------------
+
+- gh-140806: Add documentation for :func:`enum.bin`.
+
+Core and Builtins
+-----------------
+
+- gh-144307: Prevent a reference leak in module teardown at interpreter
+  finalization.
+
+- gh-144194: Fix error handling in perf jitdump initialization on memory
+  allocation failure.
+
+- gh-144012: Check if the result is ``NULL`` in ``BINARY_OP_EXTENT`` opcode.
+
+- gh-141805: Fix crash in :class:`set` when objects with the same hash are
+  concurrently added to the set after removing an element with the same hash
+  while the set still contains elements with the same hash.
+
+- gh-143670: Fixes a crash in ``ga_repr_items_list`` function.
+
+- gh-143377: Fix a crash in :func:`!_interpreters.capture_exception` when
+  the exception is incorrectly formatted. Patch by Bénédikt Tran.
+
+- gh-136924: The interactive help mode in the :term:`REPL` no longer
+  incorrectly syntax highlights text input as Python code. Contributed by
+  Olga Matoula.
+
+- gh-143189: Fix crash when inserting a non-:class:`str` key into a split
+  table dictionary when the key matches an existing key in the split table
+  but has no corresponding value in the dict.
+
+- gh-143228: Fix use-after-free in perf trampoline when toggling profiling
+  while threads are running or during interpreter finalization with daemon
+  threads active. The fix uses reference counting to ensure trampolines are
+  not freed while any code object could still reference them. Pach by Pablo
+  Galindo
+
+- gh-142664: Fix a use-after-free crash in :meth:`memoryview.__hash__
+  <object.__hash__>` when the ``__hash__`` method of the referenced object
+  mutates that object or the view. Patch by Bénédikt Tran.
+
+- gh-142557: Fix a use-after-free crash in :ref:`bytearray.__mod__
+  <bytes-formatting>` when the :class:`!bytearray` is mutated while
+  formatting the ``%``-style arguments. Patch by Bénédikt Tran.
+
+- gh-143195: Fix use-after-free crashes in :meth:`bytearray.hex` and
+  :meth:`memoryview.hex` when the separator's :meth:`~object.__len__`
+  mutates the original object. Patch by Bénédikt Tran.
+
+- gh-142975: Fix crash after unfreezing all objects tracked by the garbage
+  collector on the :term:`free threaded <free threading>` build.
+
+- gh-143135: Set :data:`sys.flags.inspect` to ``1`` when
+  :envvar:`PYTHONINSPECT` is ``0``. Previously, it was set to ``0`` in this
+  case.
+
+- gh-143003: Fix an overflow of the shared empty buffer in
+  :meth:`bytearray.extend` when ``__length_hint__()`` returns 0 for
+  non-empty iterator.
+
+- gh-143006: Fix a possible assertion error when comparing negative
+  non-integer ``float`` and ``int`` with the same number of bits in the
+  integer part.
+
+- gh-143057: Avoid locking in :c:func:`PyTraceMalloc_Track` and
+  :c:func:`PyTraceMalloc_Untrack` when :mod:`tracemalloc` is not enabled.
+
+- gh-142776: Fix a file descriptor leak in import.c
+
+- gh-142829: Fix a use-after-free crash in :class:`contextvars.Context`
+  comparison when a custom ``__eq__`` method modifies the context via
+  :meth:`~contextvars.ContextVar.set`.
+
+- gh-142766: Clear the frame of a generator when :meth:`generator.close` is
+  called.
+
+- gh-142737: Tracebacks will be displayed in fallback mode even if
+  :func:`io.open` is lost. Previously, this would crash the interpreter.
+  Patch by Bartosz Sławecki.
+
+- gh-142554: Fix a crash in :func:`divmod` when :func:`!_pylong.int_divmod`
+  does not return a tuple of length two exactly. Patch by Bénédikt Tran.
+
+- gh-142560: Fix use-after-free in :class:`bytearray` search-like methods
+  (:meth:`~bytearray.find`, :meth:`~bytearray.count`,
+  :meth:`~bytearray.index`, :meth:`~bytearray.rindex`, and
+  :meth:`~bytearray.rfind`) by marking the storage as exported which causes
+  reallocation attempts to raise :exc:`BufferError`. For
+  :func:`~operator.contains`, :meth:`~bytearray.split`, and
+  :meth:`~bytearray.rsplit` the :ref:`buffer protocol <bufferobjects>` is
+  used for this.
+
+- gh-142531: Fix a free-threaded GC performance regression.  If there are
+  many untracked tuples, the GC will run too often, resulting in poor
+  performance.  The fix is to include untracked tuples in the "long lived"
+  object count. The number of frozen objects is also now included since the
+  free-threaded GC must scan those too.
+
+- gh-142402: Fix reference counting when adjacent literal parts are merged
+  while constructing :class:`string.templatelib.Template`, preventing the
+  displaced string object from leaking.
+
+- gh-133932: Fix crash in the free threading build when clearing frames that
+  hold tagged integers.
+
+- gh-142343: Fix SIGILL crash on m68k due to incorrect assembly constraint.
+
+- gh-100964: Fix reference cycle in exhausted generator frames. Patch by
+  Savannah Ostrowski.
+
+- gh-69605: Fix edge-cases around already imported modules in the
+  :term:`REPL` auto-completion of imports.
+
+- gh-138568: Adjusted the built-in :func:`help` function so that empty
+  inputs are ignored in interactive mode.
+
+- gh-137007: Fix a bug during JIT compilation failure which caused garbage
+  collection debug assertions to fail.
+
+C API
+-----
+
+- gh-142589: Fix :c:func:`PyUnstable_Object_IsUniqueReferencedTemporary()`
+  handling of tagged ints on the interpreter stack.
+
+- gh-142571: :c:func:`!PyUnstable_CopyPerfMapFile` now checks that opening
+  the file succeeded before flushing.
+
+Build
+-----
+
+- gh-142454: When calculating the digest of the JIT stencils input, sort the
+  hashed files by filenames before adding their content to the hasher. This
+  ensures deterministic hash input and hence deterministic hash, independent
+  on filesystem order.
+
+- gh-141808: When running ``make clean-retain-profile``, keep the generated
+  JIT stencils. That way, the stencils are not generated twice when
+  Profile-guided optimization (PGO) is used. It also allows distributors to
+  supply their own pre-built JIT stencils.
+
+- gh-138061: Ensure reproducible builds by making JIT stencil header
+  generation deterministic.
+
+
 What's New in Python 3.14.2 final?
 ==================================
 
@@ -53,6 +522,9 @@ Core and Builtins
 
 - gh-142218: Fix crash when inserting into a split table dictionary with a
   non :class:`str` key that matches an existing key.
+
+Library
+-------
 
 - gh-116738: Fix :mod:`cmath` data race when initializing trigonometric
   tables with subinterpreters.
@@ -589,8 +1061,14 @@ Core and Builtins
 - gh-142048: Fix quadratically increasing garbage collection delays in
   free-threaded build.
 
+Library
+-------
+
 - gh-116738: Fix thread safety issue with :mod:`re` scanner objects in
   free-threaded builds.
+
+Core and Builtins
+-----------------
 
 - gh-141930: When importing a module, use Python's regular file object to
   ensure that writes to ``.pyc`` files are complete or an appropriate error
@@ -621,15 +1099,27 @@ Core and Builtins
   range iterator when a non-integer argument is passed. Patch by Sergey
   Miryanov.
 
+Library
+-------
+
 - gh-116738: Make csv module thread-safe on the :term:`free threaded <free
   threading>` build.
+
+Core and Builtins
+-----------------
 
 - gh-140939: Fix memory leak when :class:`bytearray` or :class:`bytes` is
   formated with the ``%*b`` format with a large width that results in a
   :exc:`MemoryError`.
 
+Library
+-------
+
 - gh-140260: Fix :mod:`struct` data race in endian table initialization with
   subinterpreters. Patch by Shamil Abdulaev.
+
+Core and Builtins
+-----------------
 
 - gh-140530: Fix a reference leak when ``raise exc from cause`` fails. Patch
   by Bénédikt Tran.
@@ -656,10 +1146,16 @@ Core and Builtins
   coroutine origin tracking depth is enabled
   (:func:`sys.set_coroutine_origin_tracking_depth`).
 
+Library
+-------
+
 - gh-140398: Fix memory leaks in :mod:`readline` functions
   :func:`~readline.read_init_file`, :func:`~readline.read_history_file`,
   :func:`~readline.write_history_file`, and
   :func:`~readline.append_history_file` when :c:func:`PySys_Audit` fails.
+
+Core and Builtins
+-----------------
 
 - gh-140406: Fix memory leak when an object's :meth:`~object.__hash__`
   method returns an object that isn't an :class:`int`.
@@ -725,8 +1221,14 @@ Core and Builtins
   default encoding in a traceback. Show the line containing the coding
   cookie when it conflicts with the BOM in a traceback.
 
+Library
+-------
+
 - gh-116738: Make :mod:`mmap` thread-safe on the :term:`free threaded <free
   threading>` build.
+
+Core and Builtins
+-----------------
 
 - gh-138558: Fix handling of unusual t-string annotations in annotationlib.
   Patch by Dave Peck.
@@ -745,12 +1247,18 @@ Core and Builtins
 - gh-69605: Fix some standard library submodules missing from the
   :term:`REPL` auto-completion of imports.
 
+Library
+-------
+
 - gh-116738: Make :mod:`cProfile` thread-safe on the :term:`free threaded
   <free threading>` build.
 
 - gh-138004: On Solaris/Illumos platforms, thread names are now encoded as
   ASCII to avoid errors on systems (e.g. OpenIndiana) that don't support
   non-ASCII names.
+
+Core and Builtins
+-----------------
 
 - gh-137433: Fix a potential deadlock in the :term:`free threading` build
   when daemon threads enable or disable profiling or tracing while the main
@@ -1173,7 +1681,13 @@ Core and Builtins
 - gh-136801: Fix PyREPL syntax highlighting on match cases after multi-line
   case. Contributed by Olga Matoula.
 
+Library
+-------
+
 - gh-136421: Fix crash when initializing :mod:`datetime` concurrently.
+
+Core and Builtins
+-----------------
 
 - gh-136541: Fix some issues with the perf trampolines on x86-64 and
   aarch64.  The trampolines were not being generated correctly for some
@@ -1195,8 +1709,14 @@ Core and Builtins
   :class:`str`. Also, disallow implicit concatenation of t-string literals
   with string or f-string literals.
 
+Library
+-------
+
 - gh-116738: Make functions in :mod:`grp` thread-safe on the :term:`free
   threaded <free threading>` build.
+
+Core and Builtins
+-----------------
 
 - gh-135148: Fixed a bug where f-string debug expressions (using =) would
   incorrectly strip out parts of strings containing escaped quotes and #
@@ -1593,9 +2113,15 @@ Core and Builtins
   ``python -m asyncio ps`` and ``python -m asyncio pstree`` commands now
   show complete execution context. Patch by Pablo Galindo.
 
+Library
+-------
+
 - gh-127319: Set the ``allow_reuse_port`` class variable to ``False`` on the
   XMLRPC, logging, and HTTP servers. This matches the behavior in prior
   Python releases, which is to not allow port reuse.
+
+Core and Builtins
+-----------------
 
 - gh-135171: Reverts the behavior of async generator expressions when
   created with object w/o __aiter__ method to the pre-3.13 behavior of
@@ -1612,8 +2138,14 @@ Core and Builtins
   instruction back to the creation of the generator expression and adding an
   additional check to ``FOR_ITER``.
 
+Library
+-------
+
 - gh-116738: Make methods in :mod:`heapq` thread-safe on the :term:`free
   threaded <free threading>` build.
+
+Core and Builtins
+-----------------
 
 - gh-134876: Add support to :pep:`768` remote debugging for Linux kernels
   which don't have CONFIG_CROSS_MEMORY_ATTACH configured.
@@ -1621,8 +2153,14 @@ Core and Builtins
 - gh-134889: Fix handling of a few opcodes that leave operands on the stack
   when optimizing ``LOAD_FAST``.
 
+Library
+-------
+
 - gh-134908: Fix crash when iterating over lines in a text file on the
   :term:`free threaded <free threading>` build.
+
+Core and Builtins
+-----------------
 
 - gh-132617: Fix :meth:`dict.update` modification check that could
   incorrectly raise a "dict mutated during update" error when a different
@@ -1896,11 +2434,11 @@ Library
 - bpo-28494: Improve Zip file validation false positive rate in
   :func:`zipfile.is_zipfile`.
 
-Core and Builtins
------------------
-
 - gh-134381: Fix :exc:`RuntimeError` when using a not-started
   :class:`threading.Thread` after calling :func:`os.fork`
+
+Core and Builtins
+-----------------
 
 - gh-127960: PyREPL interactive shell no longer starts with ``__package__``
   and ``__file__`` global names set to ``_pyrepl`` package internals.
@@ -2477,8 +3015,14 @@ Core and Builtins
   :func:`sys._jit.is_available`, :func:`sys._jit.is_enabled`, and
   :func:`sys._jit.is_active`.
 
+Library
+-------
+
 - gh-133194: :func:`ast.parse` will no longer parse new :pep:`758` syntax
   with older *feature_version* passed.
+
+Core and Builtins
+-----------------
 
 - gh-131798: Split ``CALL_LEN`` into several uops allowing the JIT to remove
   them when optimizing. Patch by Diego Russo.
@@ -2533,8 +3077,14 @@ Core and Builtins
   now provide a helpful fix suggestion for the typo.  Contributed by Pablo
   Galindo Salgado.
 
+Library
+-------
+
 - gh-132737: Support profiling code that requires ``__main__``, such as
   :mod:`pickle`.
+
+Core and Builtins
+-----------------
 
 - gh-132639: Added :c:func:`PyLong_AsNativeBytes`,
   :c:func:`PyLong_FromNativeBytes` and
@@ -2674,6 +3224,9 @@ Core and Builtins
   as if by :func:`textwrap.dedent`. This allows "python -c" invocations to
   be indented in shell scripts without causing indentation errors. (Patch by
   Jon Crall and Steven Sun)
+
+Library
+-------
 
 - gh-89562: Remove ``hostflags`` member from ``PySSLContext`` struct.
 
@@ -3092,8 +3645,14 @@ Core and Builtins
 - gh-130115: Fix an issue with thread identifiers being sign-extended on
   some platforms.
 
+Library
+-------
+
 - gh-99108: Add support for built-in implementation of HMAC (:rfc:`2104`)
   based on HACL*. Patch by Bénédikt Tran.
+
+Core and Builtins
+-----------------
 
 - gh-130080: Implement PEP 765: Disallow return/break/continue that exit a
   finally block.
@@ -3577,7 +4136,13 @@ Core and Builtins
 - gh-129715: Improve the experimental JIT's handling of returns to unknown
   callers.
 
+Library
+-------
+
 - gh-129983: Fix data race in compile_template in :file:`sre.c`.
+
+Core and Builtins
+-----------------
 
 - gh-129967: Fix a race condition in the :term:`free threading` build when
   ``repr(set)`` is called concurrently with ``set.clear()``.
@@ -3629,9 +4194,15 @@ Core and Builtins
   iterations may see the same object, but they will not corrupt the
   interpreter state.
 
+Library
+-------
+
 - gh-100388: Fix the ``platform._sys_version()`` method when ``__DATE__`` is
   undefined at buildtime by changing default buildtime datetime string to
   the UNIX epoch.
+
+Core and Builtins
+-----------------
 
 - bpo-44369: Improve syntax errors for incorrectly closed strings. Patch by
   Pablo Galindo
@@ -4068,8 +4639,14 @@ Core and Builtins
   version anymore. It is always ``'freebsd'``, instead of ``'freebsd13'`` or
   ``'freebsd14'``.
 
+Library
+-------
+
 - gh-129345: Fix null pointer dereference in :func:`syslog.openlog` when an
   audit hook raises an exception.
+
+Core and Builtins
+-----------------
 
 - gh-129231: Improve memory layout of JIT traces. Patch by Diego Russo
 
@@ -4162,13 +4739,22 @@ Core and Builtins
 - gh-125723: Fix crash with ``gi_frame.f_locals`` when generator frames
   outlive their generator. Patch by Mikhail Efimov.
 
+Library
+-------
+
 - gh-126349: Add :func:`turtle.fill`, :func:`turtle.poly` and
   :func:`turtle.no_animation` context managers. Patch by Marie Roald and
   Yngve Mardal Moe.
 
+Core and Builtins
+-----------------
+
 - gh-115911: If the current working directory cannot be determined due to
   permissions, then import will no longer raise :exc:`PermissionError`.
   Patch by Alex Willmer.
+
+Library
+-------
 
 - gh-112713: Added support for the ``Partitioned`` cookie flag in
   :mod:`http.cookies`.
@@ -4468,9 +5054,15 @@ Core and Builtins
 - gh-128137: Update :c:type:`PyASCIIObject` layout to handle interned field
   with the atomic operation. Patch by Donghee Na.
 
+Library
+-------
+
 - gh-128192: Upgrade HTTP digest authentication algorithm for
   :mod:`urllib.request` by supporting SHA-256 digest authentication as
   specified in :rfc:`7616`.
+
+Core and Builtins
+-----------------
 
 - gh-126868: Increase usage of freelist for :class:`int` allocation.
 
@@ -4494,9 +5086,15 @@ Core and Builtins
   non-module object when importing a non-existent symbol from a non-module
   object.
 
+Library
+-------
+
 - gh-128035: Indicate through :data:`ssl.HAS_PHA` whether the :mod:`ssl`
   module supports TLSv1.3 post-handshake client authentication (PHA). Patch
   by Will Childs-Klein.
+
+Core and Builtins
+-----------------
 
 - gh-127274: Add a new flag, ``CO_METHOD``, to :attr:`~codeobject.co_flags`
   that indicates whether the code object belongs to a function defined in
@@ -4889,6 +5487,9 @@ Core and Builtins
 - gh-113841: Fix possible undefined behavior division by zero in
   :class:`complex`'s :c:func:`_Py_c_pow`.
 
+Library
+-------
+
 - gh-127133: Calling :meth:`argparse.ArgumentParser.add_argument_group` on
   an argument group, and calling
   :meth:`argparse.ArgumentParser.add_argument_group` or
@@ -4896,6 +5497,9 @@ Core and Builtins
   exclusive group now raise exceptions. This nesting was never supported,
   often failed to work correctly, and was unintentionally exposed through
   inheritance. This functionality has been deprecated since Python 3.11.
+
+Core and Builtins
+-----------------
 
 - gh-126491: Add a marking phase to the GC. All objects that can be
   transitively reached from builtin modules or the stacks are marked as
@@ -5488,9 +6092,15 @@ Core and Builtins
 - gh-126688: Fix a crash when calling :func:`os.fork` on some operating
   systems, including SerenityOS.
 
+Library
+-------
+
 - gh-126066: Fix :mod:`importlib` to not write an incomplete .pyc files when
   a ulimit or some other operating system mechanism is preventing the write
   to go through fully.
+
+Core and Builtins
+-----------------
 
 - gh-126222: Do not include count of "peek" items in ``_PyUop_num_popped``.
   This ensures that the correct number of items are popped from the stack
@@ -5499,9 +6109,15 @@ Core and Builtins
 - gh-126366: Fix crash when using ``yield from`` on an object that raises an
   exception in its ``__iter__``.
 
+Library
+-------
+
 - gh-126209: Fix an issue with ``skip_file_prefixes`` parameter which
   resulted in an inconsistent behaviour between the C and Python
   implementations of :func:`warnings.warn`. Patch by Daehee Kim.
+
+Core and Builtins
+-----------------
 
 - gh-126312: Fix crash during garbage collection on an object frozen by
   :func:`gc.freeze` on the free-threaded build.
@@ -5595,6 +6211,9 @@ Core and Builtins
 - gh-119793: The :func:`map` built-in now has an optional keyword-only
   *strict* flag like :func:`zip` to check that all the iterables are of
   equal length. Patch by Wannes Boeykens.
+
+Library
+-------
 
 - gh-118950: Fix bug where SSLProtocol.connection_lost wasn't getting called
   when OSError was thrown on writing to socket.
@@ -7095,8 +7714,14 @@ Core and Builtins
 - gh-125039: Make ``this_instr`` and ``prev_instr`` const in cases
   generator.
 
+Library
+-------
+
 - gh-125008: Fix :func:`tokenize.untokenize` producing invalid syntax for
   double braces preceded by certain escape characters.
+
+Core and Builtins
+-----------------
 
 - gh-124871: Fix compiler bug (in some versions of 3.13) where an assertion
   fails during reachability analysis.
@@ -7184,8 +7809,14 @@ Core and Builtins
 - gh-123572: Fix key mappings for various F-keys in Windows for the new
   REPL. Patch by devdanzin
 
+Library
+-------
+
 - gh-123614: Add :func:`turtle.save` to easily save Turtle drawings as
   PostScript files. Patch by Marie Roald and Yngve Mardal Moe.
+
+Core and Builtins
+-----------------
 
 - gh-123339: Setting the :attr:`!__module__` attribute for a class now
   removes the ``__firstlineno__`` item from the type's dict, so they will no
@@ -7351,8 +7982,14 @@ Core and Builtins
   NEON and Power8, but lacking evidence of a performance gain, these are not
   enabled (yet).
 
+Library
+-------
+
 - gh-121999: The default extraction filter for the :mod:`tarfile` module is
   now set to :func:`'data' <tarfile.data_filter>`.
+
+Core and Builtins
+-----------------
 
 - gh-121860: Fix crash when rematerializing a managed dictionary after it
   was deleted.
@@ -7416,9 +8053,15 @@ Core and Builtins
 - gh-121130: Fix f-strings with debug expressions in format specifiers.
   Patch by Pablo Galindo
 
+Library
+-------
+
 - gh-121381: Remove ``subprocess._USE_VFORK`` escape hatch code and
   documentation. It was added just in case, and doesn't have any known cases
   that require it.
+
+Core and Builtins
+-----------------
 
 - gh-119726: Optimize code layout for calls to C functions from the JIT on
   AArch64. Patch by Diego Russo.
@@ -7473,9 +8116,15 @@ Core and Builtins
   immortal. Internals of the string interning mechanism have been changed.
   This may affect performance and identities of :class:`str` objects.
 
+Library
+-------
+
 - gh-120485: Add an override of ``allow_reuse_port`` on classes subclassing
   ``socketserver.TCPServer`` where ``allow_reuse_address`` is also
   overridden.
+
+Core and Builtins
+-----------------
 
 - gh-120384: Fix an array out of bounds crash in ``list_ass_subscript``,
   which could be invoked via some specifically tailored input: including
@@ -7485,9 +8134,15 @@ Core and Builtins
 - gh-120367: Fix crash in compiler on code with redundant NOPs and JUMPs
   which show up after exception handlers are moved to the end of the code.
 
+Library
+-------
+
 - gh-120380: Fix Python implementation of :class:`pickle.Pickler` for
   :class:`bytes` and :class:`bytearray` objects when using protocol version
   5. Patch by Bénédikt Tran.
+
+Core and Builtins
+-----------------
 
 - gh-120397: Improve the throughput by up to two times for the
   :meth:`str.count`, :meth:`bytes.count` and :meth:`bytearray.count` methods
@@ -7647,8 +8302,14 @@ Core and Builtins
   default and free-threaded builds, this sets up the infrastructure for
   unboxed integers in the future.
 
+Library
+-------
+
 - gh-115801: Raise ``TypeError`` when passing a string to
   :func:`difflib.unified_diff` and :func:`difflib.context_diff`.
+
+Core and Builtins
+-----------------
 
 - gh-117558: Improve error messages when a string, bytes or bytearray object
   of length 1 is expected.
@@ -8069,9 +8730,15 @@ Core and Builtins
   is included (indirectly, via pycore_code.h) by some key 3rd party software
   that does so for speed.
 
+Library
+-------
+
 - gh-95382: Improve performance of :func:`json.dumps` and :func:`json.dump`
   when using the argument *indent*. Depending on the data the encoding using
   :func:`json.dumps` with *indent* can be up to 2 to 3 times faster.
+
+Core and Builtins
+-----------------
 
 - gh-116322: In ``--disable-gil`` builds, the GIL will be enabled while
   loading C extension modules. If the module indicates that it supports
@@ -8786,11 +9453,17 @@ Core and Builtins
 
   When the collecting space becomes empty, the two spaces are swapped.
 
+Library
+-------
+
 - gh-109870: Dataclasses now calls :func:`exec` once per dataclass, instead
   of once per method being added.  This can speed up dataclass creation by
   up to 20%.
 
 - gh-97901: Mime type ``text/rtf`` is now supported by :mod:`mimetypes`.
+
+Core and Builtins
+-----------------
 
 - bpo-24612: Improve the :exc:`SyntaxError` that happens when 'not' appears
   after an operator. Patch by Pablo Galindo
@@ -9228,16 +9901,28 @@ Core and Builtins
 - gh-112175: Every ``PyThreadState`` now has its own ``eval_breaker``,
   allowing specific threads to be interrupted.
 
+Library
+-------
+
 - gh-115154: Fix a bug that was causing the :func:`tokenize.untokenize`
   function to handle unicode named literals incorrectly. Patch by Pablo
   Galindo
 
+Core and Builtins
+-----------------
+
 - gh-112433: Add ability to force alignment of :mod:`ctypes.Structure` by
   way of the new ``_align_`` attribute on the class.
+
+Library
+-------
 
 - gh-104090: The multiprocessing resource tracker now exits with non-zero
   status code if a resource leak was detected. It still exits with status
   code 0 otherwise.
+
+Core and Builtins
+-----------------
 
 - gh-105858: Improve the constructors for :mod:`ast` nodes. Arguments of
   list types now default to an empty list if omitted, and optional fields
@@ -14192,11 +14877,14 @@ Security
   space characters following the specification for URLs defined by WHATWG in
   response to :cve:`2023-24329`. Patch by Illia Volochii.
 
-Core and Builtins
------------------
+Library
+-------
 
 - gh-102856: Implement PEP 701 changes in the :mod:`tokenize` module. Patch
   by Marta Gómez Macías and Pablo Galindo Salgado
+
+Core and Builtins
+-----------------
 
 - gh-104615: Fix wrong ordering of assignments in code like ``a, a = x, y``.
   Contributed by Carl Meyer.
@@ -14315,12 +15003,18 @@ Core and Builtins
 
   Patch by Eric Traut, Larry Hastings, and Jelle Zijlstra.
 
+Library
+-------
+
 - gh-103801: Adds three minor linting fixes to the wasm module caught that
   were caught by ruff.
 
 - gh-103793: Optimized asyncio Task creation by deferring expensive string
   formatting (task name generation) from Task creation to the first time
   ``get_name`` is called. This makes asyncio benchmarks up to 5% faster.
+
+Core and Builtins
+-----------------
 
 - gh-102310: Change the error range for invalid bytes literals.
 
@@ -14405,11 +15099,11 @@ Core and Builtins
   Previously this returned ``1``, which was not consistent with
   ``mem_0d[0]`` raising an :exc:`IndexError`.
 
-- bpo-31821: Fix :func:`!pause_reading` to work when called from
-  :func:`!connection_made` in :mod:`asyncio`.
-
 Library
 -------
+
+- bpo-31821: Fix :func:`!pause_reading` to work when called from
+  :func:`!connection_made` in :mod:`asyncio`.
 
 - gh-104600: :func:`functools.update_wrapper` now sets the
   ``__type_params__`` attribute (added by :pep:`695`).
@@ -15120,9 +15814,15 @@ Core and Builtins
 - gh-90997: Shrink the number of inline :opcode:`CACHE` entries used by
   :opcode:`LOAD_GLOBAL`.
 
+Library
+-------
+
 - gh-102491: Improve import time of ``platform`` by removing IronPython
   version parsing. The IronPython version parsing was not functional (see
   https://github.com/IronLanguages/ironpython3/issues/1667).
+
+Core and Builtins
+-----------------
 
 - gh-101291: Rearrage bits in first field (after header) of PyLongObject. *
   Bits 0 and 1: 1 - sign. I.e. 0 for positive numbers, 1 for zero and 2 for
@@ -15151,17 +15851,23 @@ Core and Builtins
 
 - gh-102255: Improve build support for the Xbox. Patch by Max Bachmann.
 
+Build
+-----
+
 - gh-102027: Fix SSE2 and SSE3 detection in ``_blake2`` internal module.
   Patch by Max Bachmann.
+
+Core and Builtins
+-----------------
 
 - gh-101865: Deprecate ``co_lnotab`` in code objects, schedule it for
   removal in Python 3.14
 
-- bpo-1635741: Adapt :mod:`!_pickle` to :pep:`687`. Patch by Mohamed Koubaa
-  and Erlend Aasland.
-
 Library
 -------
+
+- bpo-1635741: Adapt :mod:`!_pickle` to :pep:`687`. Patch by Mohamed Koubaa
+  and Erlend Aasland.
 
 - gh-103085: Pure python :func:`locale.getencoding` will not warn
   deprecation.
@@ -15762,12 +16468,12 @@ Core and Builtins
   setting ``ENABLE_SPECIALIZATION=False`` in :mod:`opcode`, followed by
   ``make regen-all``.
 
+Library
+-------
+
 - bpo-32780: Inter-field padding is now inserted into the PEP3118 format
   strings obtained from :class:`ctypes.Structure` objects, reflecting their
   true representation in memory.
-
-Library
--------
 
 - gh-101541: [Enum] - fix psuedo-flag creation
 
@@ -15993,8 +16699,14 @@ Core and Builtins
 
 - gh-100425: Improve the accuracy of ``sum()`` with compensated summation.
 
+Library
+-------
+
 - gh-100374: Fix incorrect result and delay in :func:`socket.getfqdn`. Patch
   by Dominic Socular.
+
+Core and Builtins
+-----------------
 
 - gh-100357: Convert ``vars``, ``dir``, ``next``, ``getattr``, and ``iter``
   to argument clinic.
@@ -16053,7 +16765,13 @@ Core and Builtins
 
 - gh-94603: Improve performance of ``list.pop`` for small lists.
 
+Library
+-------
+
 - gh-89051: Add :const:`ssl.OP_LEGACY_SERVER_CONNECT`
+
+Core and Builtins
+-----------------
 
 - bpo-32782: ``ctypes`` arrays of length 0 now report a correct itemsize
   when a ``memoryview`` is constructed from them, rather than always giving
@@ -16417,11 +17135,17 @@ Core and Builtins
 - gh-99553: Fix bug where an :exc:`ExceptionGroup` subclass can wrap a
   :exc:`BaseException`.
 
+Library
+-------
+
 - gh-99547: Add a function to os.path to check if a path is a junction:
   isjunction. Add similar functionality to pathlib.Path as is_junction.
 
 - gh-99370: Fix zip path for venv created from a non-installed python on
   POSIX platforms.
+
+Core and Builtins
+-----------------
 
 - gh-99377: Add audit events for thread creation and clear operations.
 
@@ -16856,8 +17580,14 @@ Core and Builtins
   :opcode:`RETURN_VALUE`, :opcode:`YIELD_VALUE`, and
   :opcode:`RETURN_GENERATOR`, which now clear the frame.
 
+Build
+-----
+
 - gh-98415: Fix detection of MAC addresses for :mod:`uuid` on certain OSs.
   Patch by Chaim Sanders
+
+Core and Builtins
+-----------------
 
 - gh-98686: Quicken all code objects, and specialize adaptive bytecode
   instructions more aggressively.
@@ -16881,11 +17611,11 @@ Core and Builtins
   :ref:`ETHERTYPE_* constants <socket-ethernet-types>` in :mod:`socket`.
   Patch by Noam Cohen.
 
-- gh-93696: Allow :mod:`pdb` to locate source for frozen modules in the
-  standard library.
-
 Library
 -------
+
+- gh-93696: Allow :mod:`pdb` to locate source for frozen modules in the
+  standard library.
 
 - gh-99418: Fix bug in :func:`urllib.parse.urlparse` that causes URL schemes
   that begin with a digit, a plus sign, or a minus sign to be parsed
@@ -17211,10 +17941,16 @@ Core and Builtins
   parser needs to set location information in the AST nodes, so that the
   parser does not have to calculate those doing pointer arithmetic.
 
+Library
+-------
+
 - gh-96078: :func:`os.sched_yield` now release the GIL while calling
   sched_yield(2). Patch by Donghee Na.
 
 - gh-97955: Migrate :mod:`zoneinfo` to Argument Clinic.
+
+Core and Builtins
+-----------------
 
 - gh-97912: The compiler now avoids quadratic behavior when finding which
   instructions should use the :opcode:`LOAD_FAST_CHECK` opcode.
@@ -17284,7 +18020,13 @@ Core and Builtins
 - gh-95921: Fix overly-broad source position information for chained
   comparisons used as branching conditions.
 
+Library
+-------
+
 - gh-96821: Fix undefined behaviour in ``audioop.c``.
+
+Core and Builtins
+-----------------
 
 - gh-96821: Fix undefined behaviour in ``_testcapimodule.c``.
 
@@ -17321,9 +18063,15 @@ Core and Builtins
 
 - gh-96678: Fix case of undefined behavior in ceval.c
 
+Library
+-------
+
 - gh-64373: Convert :mod:`!_functools` to argument clinic.
 
 - gh-96641: Do not expose ``KeyWrapper`` in :mod:`!_functools`.
+
+Core and Builtins
+-----------------
 
 - gh-96636: Ensure that tracing, ``sys.setrace()``, is turned on
   immediately. In pre-release versions of 3.11, some tracing events might
@@ -17509,8 +18257,14 @@ Core and Builtins
 - gh-91409: Fix incorrect source location info caused by certain
   optimizations in the bytecode compiler.
 
+Library
+-------
+
 - gh-95023: Implement :func:`os.setns` and  :func:`os.unshare` for Linux.
   Patch by Noam Cohen.
+
+Core and Builtins
+-----------------
 
 - gh-94036: Fix incorrect source location info for some multi-line attribute
   accesses and method calls.
@@ -17520,12 +18274,21 @@ Core and Builtins
   and ``__hash__``. Previously it could cause SystemError or other undesired
   behavior.
 
+Library
+-------
+
 - gh-94996: :func:`ast.parse` will no longer parse function definitions with
   positional-only params when passed ``feature_version`` less than ``(3,
   8)``. Patch by Shantanu Jain.
 
+Core and Builtins
+-----------------
+
 - gh-94739: Allow jumping within, out of, and across exception handlers in
   the debugger.
+
+Library
+-------
 
 - gh-94949: :func:`ast.parse` will no longer parse parenthesized context
   managers when passed ``feature_version`` less than ``(3, 9)``. Patch by
@@ -17534,6 +18297,9 @@ Core and Builtins
 - gh-94947: :func:`ast.parse` will no longer parse assignment expressions
   when passed ``feature_version`` less than ``(3, 8)``. Patch by Shantanu
   Jain.
+
+Core and Builtins
+-----------------
 
 - gh-91256: Ensures the program name is known for help text during
   interpreter startup.
@@ -17647,12 +18413,18 @@ Core and Builtins
 - gh-93662: Make sure that the end column offsets are correct in multi-line
   method calls. Previously, the end column could precede the column offset.
 
+Library
+-------
+
 - gh-93461: :func:`importlib.invalidate_caches` now drops entries from
   :data:`sys.path_importer_cache` with a relative path as name. This solves
   a caching issue when a process changes its current working directory.
 
   ``FileFinder`` no longer inserts a dot in the path, e.g. ``/egg/./spam``
   is now ``/egg/spam``.
+
+Core and Builtins
+-----------------
 
 - gh-93621: Change order of bytecode instructions emitted for
   :keyword:`with` and :keyword:`async with` to reduce the number of entries
@@ -17769,7 +18541,13 @@ Core and Builtins
 - gh-92236: Remove spurious "LINE" event when starting a generator or
   coroutine, visible tracing functions implemented in C.
 
+Library
+-------
+
 - gh-91102: :meth:`!_warnings.warn_explicit` is ported to Argument Clinic.
+
+Core and Builtins
+-----------------
 
 - gh-92619: Make the compiler duplicate an exit block only if none of its
   instructions have a lineno (previously only the first instruction in the
@@ -17778,7 +18556,13 @@ Core and Builtins
 - gh-88750: The deprecated debug build only ``PYTHONTHREADDEBUG``
   environment variable no longer does anything.
 
+Library
+-------
+
 - gh-92261: Fix hang when trying to iterate over a ``typing.Union``.
+
+Core and Builtins
+-----------------
 
 - gh-91432: Specialized the :opcode:`FOR_ITER` opcode using the PEP 659
   machinery
@@ -19507,11 +20291,17 @@ Core and Builtins
 - bpo-45317: Add internal documentation explaining design of new (for 3.11)
   frame stack.
 
+Library
+-------
+
 - bpo-47197: ctypes used to mishandle ``void`` return types, so that for
   instance a function declared like ``ctypes.CFUNCTYPE(None, ctypes.c_int)``
   would be called with signature ``int f(int)`` instead of ``void f(int)``.
   Wasm targets require function pointers to be called with the correct
   signatures so this led to crashes. The problem is now fixed.
+
+Core and Builtins
+-----------------
 
 - bpo-47120: Make opcodes :opcode:`!JUMP_IF_TRUE_OR_POP` and
   :opcode:`!JUMP_IF_FALSE_OR_POP` relative rather than absolute.
@@ -19550,7 +20340,13 @@ Core and Builtins
   them for ``float``, ``int``, ``str``, ``bool``, and ``None`` to avoid
   pointer-chasing at runtime where types are known at C compile time.
 
+Build
+-----
+
 - bpo-46045: Do not use POSIX semaphores on NetBSD
+
+Core and Builtins
+-----------------
 
 - bpo-36819: Fix crashes in built-in encoders with error handlers that
   return position less or equal than the starting position of non-encodable
@@ -20188,9 +20984,15 @@ Core and Builtins
   ownership explicit to simplify clearing and deallocing frames and
   generators.
 
+Library
+-------
+
 - bpo-46968: Check for the existence of the "sys/auxv.h" header in
   :mod:`faulthandler` to avoid compilation problems in systems where this
   header doesn't exist. Patch by Pablo Galindo
+
+Core and Builtins
+-----------------
 
 - bpo-46329: Use low bit of ``LOAD_GLOBAL`` to indicate whether to push a
   ``NULL`` before the global. Helps streamline the call sequence a bit.
@@ -20208,8 +21010,14 @@ Core and Builtins
 - bpo-47005: Improve performance of ``bytearray_repeat`` and
   ``bytearray_irepeat`` by reducing the number of invocations of ``memcpy``.
 
+Library
+-------
+
 - bpo-46829: Deprecate passing a message into :meth:`asyncio.Future.cancel`
   and :meth:`asyncio.Task.cancel`
+
+Core and Builtins
+-----------------
 
 - bpo-46993: Speed up :class:`bytearray` creation from :class:`list` and
   :class:`tuple` by 40%. Patch by Kumar Aditya.
@@ -20798,7 +21606,13 @@ Core and Builtins
 - bpo-46329: Fix specialization stats gathering for :opcode:`!PRECALL`
   instructions.
 
+Library
+-------
+
 - bpo-46794: Bump up the libexpat version into 2.4.6
+
+Core and Builtins
+-----------------
 
 - bpo-46823: Implement a specialized combined opcode
   ``LOAD_FAST__LOAD_ATTR_INSTANCE_VALUE``.  Patch by Dennis Sweeney.
@@ -20842,9 +21656,15 @@ Core and Builtins
 - bpo-46707: Avoid potential exponential backtracking when producing some
   syntax errors involving lots of brackets. Patch by Pablo Galindo.
 
+Library
+-------
+
 - bpo-46323: :mod:`ctypes` now allocates memory on the stack instead of on
   the heap to pass arguments while calling a Python callback function. Patch
   by Donghee Na.
+
+Core and Builtins
+-----------------
 
 - bpo-45923: Add a quickened form of :opcode:`RESUME` that skips quickening
   checks.
@@ -20859,11 +21679,17 @@ Core and Builtins
 - bpo-46675: Allow more than 16 items in a split dict before it is combined.
   The limit is now 254.
 
+Library
+-------
+
 - bpo-40479: Add a missing call to ``va_end()`` in
   ``Modules/_hashopenssl.c``.
 
 - bpo-46323: Use :c:func:`PyObject_Vectorcall` while calling ctypes callback
   function. Patch by Donghee Na.
+
+Core and Builtins
+-----------------
 
 - bpo-46615: When iterating over sets internally in ``setobject.c``, acquire
   strong references to the resulting items from the set.  This prevents
@@ -21246,8 +22072,14 @@ Core and Builtins
   faster on the amd64 platform when dividing an int by a value smaller than
   ``2**30``.
 
+Library
+-------
+
 - bpo-46383: Fix invalid signature of ``_zoneinfo``'s ``module_free``
   function to resolve a crash on wasm32-emscripten platform.
+
+Core and Builtins
+-----------------
 
 - bpo-46361: Ensure that "small" integers created by :meth:`int.from_bytes`
   and :class:`decimal.Decimal` are properly cached.
@@ -21263,9 +22095,18 @@ Core and Builtins
   whitespace character that are ended by line continuation characters. Patch
   by Pablo Galindo
 
+Library
+-------
+
 - bpo-30512: Add CAN Socket support for NetBSD.
 
+Build
+-----
+
 - bpo-46045: Do not use POSIX semaphores on NetBSD
+
+Core and Builtins
+-----------------
 
 - bpo-44024: Improve the :exc:`TypeError` message for non-string second
   arguments passed to the built-in functions :func:`getattr` and
@@ -21587,8 +22428,14 @@ Core and Builtins
   the compiler anywhere a Python function can be entered. It is used by the
   interpreter to perform tracing and optimizer checks.
 
+Library
+-------
+
 - bpo-46208: Fix the regression of os.path.normpath("A/../../B") not
   returning expected "../B" but "B".
+
+Core and Builtins
+-----------------
 
 - bpo-46240: Correct the error message for unclosed parentheses when the
   tokenizer doesn't reach the end of the source when the error is reported.
@@ -21606,7 +22453,13 @@ Core and Builtins
 - bpo-46202: Remove :opcode:`!POP_EXCEPT_AND_RERAISE` and replace it by an
   equivalent sequence of other opcodes.
 
+Library
+-------
+
 - bpo-46085: Fix iterator cache mechanism of :class:`OrderedDict`.
+
+Core and Builtins
+-----------------
 
 - bpo-46055: Speed up shifting operation involving integers less than
   :c:macro:`PyLong_BASE`. Patch by Xinhang Xu.
@@ -21664,8 +22517,14 @@ Core and Builtins
   that unregister themselves before raising exceptions. Patch by Pablo
   Galindo.
 
+Library
+-------
+
 - bpo-46000: Improve compatibility of the :mod:`curses` module with NetBSD
   curses.
+
+Core and Builtins
+-----------------
 
 - bpo-44525: Specialize the CALL_FUNCTION instruction for calls to builtin
   types with a single argument. Speeds up ``range(x)``, ``list(x)``, and
@@ -22029,8 +22888,14 @@ Core and Builtins
   to avoid an additional allocation when the frame object outlives the frame
   activation.
 
+Library
+-------
+
 - bpo-45614: Fix :mod:`traceback` display for exceptions with invalid module
   name.
+
+Core and Builtins
+-----------------
 
 - bpo-45813: Fix crash when calling coro.cr_frame.clear() after coroutine
   has been freed.
@@ -23037,17 +23902,29 @@ Core and Builtins
   :meth:`int.to_bytes` also takes a default value of ``1`` for the
   ``length`` argument.
 
+Library
+-------
+
 - bpo-44219: Release the GIL while performing ``isatty`` system calls on
   arbitrary file descriptors. In particular, this affects :func:`os.isatty`,
   :func:`os.device_encoding` and :class:`io.TextIOWrapper`. By extension,
   :func:`io.open` in text mode is also affected. This change solves a
   deadlock in :func:`os.isatty`. Patch by Vincent Michel in :issue:`44219`.
 
+Core and Builtins
+-----------------
+
 - bpo-44959: Added fallback to extension modules with '.sl' suffix on HP-UX
+
+Library
+-------
 
 - bpo-45121: Fix issue where ``Protocol.__init__`` raises ``RecursionError``
   when it's called directly or via ``super()``. Patch provided by Yurii
   Karabas.
+
+Core and Builtins
+-----------------
 
 - bpo-44348: The deallocator function of the :exc:`BaseException` type now
   uses the trashcan mechanism to prevent stack overflow. For example, when a
@@ -23098,9 +23975,15 @@ Core and Builtins
   opt out of (or into) using optional frozen modules.  This defaults to "on"
   (or "off" if it's running out of the source tree).
 
+Library
+-------
+
 - bpo-45012: In :mod:`posix`, release GIL during ``stat()``, ``lstat()``,
   and ``fstatat()`` syscalls made by :func:`os.DirEntry.stat`. Patch by
   Stanisław Skonieczny.
+
+Core and Builtins
+-----------------
 
 - bpo-45018: Fixed pickling of range iterators that iterated for over
   ``2**32`` times.
@@ -23111,10 +23994,16 @@ Core and Builtins
 - bpo-44963: Implement ``send()`` and ``throw()`` methods for
   ``anext_awaitable`` objects. Patch by Pablo Galindo.
 
+Library
+-------
+
 - bpo-44962: Fix a race in WeakKeyDictionary, WeakValueDictionary and
   WeakSet when two threads attempt to commit the last pending removal. This
   fixes asyncio.create_task and fixes a data loss in asyncio.run where
   shutdown_asyncgens is not run
+
+Core and Builtins
+-----------------
 
 - bpo-24234: Implement the :meth:`__bytes__` special method on the
   :class:`bytes` type, so a bytes object ``b``  passes an ``isinstance(b,
@@ -23139,8 +24028,14 @@ Core and Builtins
   * BINARY_ADD_UNICODE
   * BINARY_ADD_UNICODE_INPLACE_FAST
 
+Library
+-------
+
 - bpo-44929: Fix some edge cases of ``enum.Flag`` string representation in
   the REPL. Patch by Pablo Galindo.
+
+Core and Builtins
+-----------------
 
 - bpo-44914: Class version tags are no longer recycled.
 
@@ -23262,9 +24157,15 @@ Core and Builtins
   is now ``int``. Fix comparison of the union type with non-hashable
   objects. E.g. ``int | str == {}`` no longer raises a TypeError.
 
+Library
+-------
+
 - bpo-44611: On Windows, :func:`os.urandom`: uses BCryptGenRandom API
   instead of CryptGenRandom API which is deprecated from Microsoft Windows
   API. Patch by Donghee Na.
+
+Core and Builtins
+-----------------
 
 - bpo-44635: Convert ``None`` to ``type(None)`` in the union type
   constructor.
@@ -23306,10 +24207,16 @@ Core and Builtins
   dlopen'ed twice to work around flaws in mid-1990s posix-ish operating
   systems has been removed from dynload_shlib.c.
 
+Library
+-------
+
 - bpo-44490: :mod:`typing` now searches for type parameters in
   ``types.Union`` objects. ``get_type_hints`` will also properly resolve
   annotations with nested ``types.Union`` objects. Patch provided by Yurii
   Karabas.
+
+Core and Builtins
+-----------------
 
 - bpo-43950: Code objects can now provide the column information for
   instructions when available. This is levaraged during traceback printing
@@ -23321,9 +24228,15 @@ Core and Builtins
 - bpo-44562: Remove uses of :c:func:`PyObject_GC_Del` in error path when
   initializing :class:`types.GenericAlias`.
 
+Library
+-------
+
 - bpo-41486: Fix a memory consumption and copying performance regression in
   earlier 3.10 beta releases if someone used an output buffer larger than
   4GiB with zlib.decompress on input data that expands that large.
+
+Core and Builtins
+-----------------
 
 - bpo-43908: Heap types with the :c:macro:`Py_TPFLAGS_IMMUTABLETYPE` flag
   can now inherit the :pep:`590` vectorcall protocol.  Previously, this was
@@ -23414,9 +24327,15 @@ Core and Builtins
 - bpo-44317: Improve tokenizer error with improved locations. Patch by Pablo
   Galindo.
 
+Library
+-------
+
 - bpo-44304: Fix a crash in the :mod:`sqlite3` module that happened when the
   garbage collector clears :class:`sqlite.Statement` objects. Patch by Pablo
   Galindo
+
+Core and Builtins
+-----------------
 
 - bpo-44305: Improve error message for ``try`` blocks without ``except`` or
   ``finally`` blocks. Patch by Pablo Galindo.
@@ -24973,10 +25892,16 @@ Core and Builtins
   process API function ``PyLineTable_InitAddressRange``. This makes the
   handling of line number tables more robust in some circumstances.
 
+Library
+-------
+
 - bpo-43908: Make :mod:`re` types immutable. Patch by Erlend E. Aasland.
 
 - bpo-43908: Make the :class:`array.array` type immutable. Patch by Erlend
   E. Aasland.
+
+Core and Builtins
+-----------------
 
 - bpo-43901: Change class and module objects to lazy-create empty
   annotations dicts on demand.  The annotations dicts are stored in the
@@ -25060,8 +25985,14 @@ Core and Builtins
   async, or coroutine and handles sending values to a newly created
   generator or coroutine.
 
+Library
+-------
+
 - bpo-43105: Importlib now resolves relative paths when creating module spec
   objects from file locations.
+
+Core and Builtins
+-----------------
 
 - bpo-43682: Static methods (:deco:`staticmethod`) are now callable as
   regular functions. Patch by Victor Stinner.
@@ -25629,8 +26560,14 @@ Core and Builtins
   internally. This reduces the number of EXTENDED_ARG instructions needed
   and streamlines instruction dispatch a bit.
 
+Library
+-------
+
 - bpo-40645: Fix reference leak in the :mod:`!_hashopenssl` extension. Patch
   by Pablo Galindo.
+
+Core and Builtins
+-----------------
 
 - bpo-42134: Calls to find_module() by the import system now raise
   ImportWarning.
@@ -26056,6 +26993,9 @@ Core and Builtins
 - bpo-43121: Fixed an incorrect :exc:`SyntaxError` message for missing comma
   in literals. Patch by Pablo Galindo.
 
+Library
+-------
+
 - bpo-42819: :mod:`readline`: Explicitly disable bracketed paste in the
   interactive interpreter, even if it's set in the inputrc, is enabled by
   default (eg GNU Readline 8.1), or a user calls
@@ -26065,6 +27005,9 @@ Core and Builtins
   that don't support it. It can still be explicitly enabled by calling
   ``readline.parse_and_bind("set enable-bracketed-paste on")``. Patch by
   Dustin Rodrigues.
+
+Core and Builtins
+-----------------
 
 - bpo-42808: Simple calls to ``type(object)`` are now faster due to the
   ``vectorcall`` calling convention. Patch by Dennis Sweeney.
@@ -26079,11 +27022,17 @@ Core and Builtins
 - bpo-42128: Implement :pep:`634` (structural pattern matching). Patch by
   Brandt Bucher.
 
+Library
+-------
+
 - bpo-40692: In the :class:`concurrent.futures.ProcessPoolExecutor`,
   validate that :func:`multiprocess.synchronize` is available on a given
   platform and rely on that check in the :mod:`concurrent.futures` test
   suite so we can run tests that are unrelated to
   :class:`ProcessPoolExecutor` on those platforms.
+
+Core and Builtins
+-----------------
 
 - bpo-38302: If :func:`object.__ipow__` returns :data:`NotImplemented`, the
   operator will correctly fall back to :func:`object.__pow__` and
@@ -26303,9 +27252,15 @@ Core and Builtins
 
 - bpo-42823: frame.f_lineno is correct even if frame.f_trace is set to True
 
+Library
+-------
+
 - bpo-37324: Remove deprecated aliases to
   :ref:`collections-abstract-base-classes` from the :mod:`collections`
   module.
+
+Core and Builtins
+-----------------
 
 - bpo-41994: Fixed possible leak in ``import`` when ``sys.modules`` is not a
   ``dict``.
@@ -26549,13 +27504,22 @@ Core and Builtins
 - bpo-42615: Remove jump commands made redundant by the deletion of
   unreachable bytecode blocks
 
+Library
+-------
+
 - bpo-42639: Make the :mod:`atexit` module state per-interpreter. It is now
   safe have more than one :mod:`atexit` module instance. Patch by Donghee Na
   and Victor Stinner.
 
+Core and Builtins
+-----------------
+
 - bpo-32381: Fix encoding name when running a ``.pyc`` file on Windows:
   :c:func:`PyRun_SimpleFileExFlags()` now uses the correct encoding to
   decode the filename.
+
+Library
+-------
 
 - bpo-42195: The ``__args__`` of the parameterized generics for
   :data:`typing.Callable` and :class:`collections.abc.Callable` are now
@@ -26579,6 +27543,9 @@ Core and Builtins
 
 - bpo-1635741: Port the :mod:`pyexpat` extension module to multi-phase
   initialization (:pep:`489`).
+
+Core and Builtins
+-----------------
 
 - bpo-40521: Make the Unicode dictionary of interned strings compatible with
   subinterpreters. Patch by Victor Stinner.
@@ -26928,8 +27895,14 @@ Core and Builtins
   when option :option:`-b` is specified. Speed up comparison of bytarray
   objects with non-buffer object.
 
+Library
+-------
+
 - bpo-1635741: Port the ``_warnings`` extension module to the multi-phase
   initialization API (:pep:`489`). Patch by Victor Stinner.
+
+Core and Builtins
+-----------------
 
 - bpo-41686: On Windows, the ``SIGINT`` event, ``_PyOS_SigintEvent()``, is
   now created even if Python is configured to not install signal handlers
@@ -26968,12 +27941,24 @@ Core and Builtins
   respecting monkey-patching a class-level attribute to make it a
   descriptor. Patch by Pablo Galindo.
 
+Library
+-------
+
 - bpo-40077: Convert :mod:`queue` to use heap types.
+
+Core and Builtins
+-----------------
 
 - bpo-42246: Improved accuracy of line tracing events and f_lineno attribute
   of Frame objects. See PEP 626 for details.
 
+Library
+-------
+
 - bpo-40077: Convert :mod:`mmap` to use heap types.
+
+Core and Builtins
+-----------------
 
 - bpo-42233: Allow ``GenericAlias`` objects to use :ref:`union type
   expressions <types-union>`. This allows expressions like ``list[int] |
@@ -27531,9 +28516,15 @@ Core and Builtins
 - bpo-41902: Micro optimization for range.index if step is 1. Patch by
   Donghee Na.
 
+Library
+-------
+
 - bpo-41435: Add ``sys._current_exceptions()`` function to retrieve a
   dictionary mapping each thread's identifier to the topmost exception
   currently active in that thread at the time the function is called.
+
+Core and Builtins
+-----------------
 
 - bpo-38605: Enable ``from __future__ import annotations`` (:pep:`563`) by
   default. The values found in :attr:`~object.__annotations__` dicts are now
@@ -27835,8 +28826,14 @@ Core and Builtins
 - bpo-41870: Speed up calls to ``bool()`` by using the :pep:`590`
   ``vectorcall`` calling convention. Patch by Donghee Na.
 
+Library
+-------
+
 - bpo-1635741: Port the :mod:`!_bisect` module to the multi-phase
   initialization API (:pep:`489`).
+
+Core and Builtins
+-----------------
 
 - bpo-39934: Correctly count control blocks in 'except' in compiler. Ensures
   that a syntax error, rather a fatal error, occurs for deeply nested, named
@@ -27844,6 +28841,9 @@ Core and Builtins
 
 - bpo-41780: Fix :meth:`__dir__` of :class:`types.GenericAlias`. Patch by
   Batuhan Taskaya.
+
+Library
+-------
 
 - bpo-1635741: Port the :mod:`!_lsprof` extension module to multi-phase
   initialization (:pep:`489`).
@@ -27860,9 +28860,15 @@ Core and Builtins
 - bpo-1635741: Convert the :mod:`!_sha256` extension module types to heap
   types.
 
+Core and Builtins
+-----------------
+
 - bpo-41690: Fix a possible stack overflow in the parser when parsing
   functions and classes with a huge amount of arguments. Patch by Pablo
   Galindo.
+
+Library
+-------
 
 - bpo-1635741: Port the :mod:`!_overlapped` extension module to multi-phase
   initialization (:pep:`489`).
@@ -27873,12 +28879,21 @@ Core and Builtins
 - bpo-1635741: Port the :mod:`!_opcode` extension module to multi-phase
   initialization (:pep:`489`).
 
+Core and Builtins
+-----------------
+
 - bpo-41681: Fixes the wrong error description in the error raised by using
   2 ``,`` in format string in f-string and :meth:`str.format`.
+
+Library
+-------
 
 - bpo-41675: The implementation of :func:`signal.siginterrupt` now uses
   :c:func:`!sigaction` (if it is available in the system) instead of the
   deprecated :c:func:`!siginterrupt`. Patch by Pablo Galindo.
+
+Core and Builtins
+-----------------
 
 - bpo-41670: Prevent line trace being skipped on platforms not compiled with
   ``USE_COMPUTED_GOTOS``. Fixes issue where some lines nested within a
@@ -27887,8 +28902,14 @@ Core and Builtins
 - bpo-41654: Fix a crash that occurred when destroying subclasses of
   :class:`MemoryError`. Patch by Pablo Galindo.
 
+Library
+-------
+
 - bpo-1635741: Port the :mod:`zlib` extension module to multi-phase
   initialization (:pep:`489`).
+
+Core and Builtins
+-----------------
 
 - bpo-41631: The ``_ast`` module uses again a global state. Using a module
   state per module instance is causing subtle practical problems. For
@@ -27896,13 +28917,25 @@ Core and Builtins
   implement lazy import, whereas Python expected that ``import _ast`` always
   return a fully initialized ``_ast`` module.
 
+Library
+-------
+
 - bpo-40077: Convert :mod:`!_operator` to use :c:func:`PyType_FromSpec`.
+
+Core and Builtins
+-----------------
 
 - bpo-1653741: Port :mod:`!_sha3` to multi-phase init.  Convert static types
   to heap types.
 
+Library
+-------
+
 - bpo-1635741: Port the :mod:`!_blake2` extension module to the multi-phase
   initialization API (:pep:`489`).
+
+Core and Builtins
+-----------------
 
 - bpo-41533: Free the stack allocated in ``va_build_stack`` if
   ``do_mkstack`` fails and the stack is not a ``small_stack``.
@@ -27913,8 +28946,14 @@ Core and Builtins
 - bpo-41525: The output of ``python --help`` contains now only ASCII
   characters.
 
+Library
+-------
+
 - bpo-1635741: Port the :mod:`!_sha1`, :mod:`!_sha512`, and :mod:`!_md5`
   extension modules to multi-phase initialization API (:pep:`489`).
+
+Core and Builtins
+-----------------
 
 - bpo-41431: Optimize ``dict_merge()`` for copying dict (e.g. ``dict(d)``
   and ``{}.update(d)``).
@@ -27949,7 +28988,13 @@ Core and Builtins
 
 - bpo-1635741: Port :mod:`multiprocessing` to multi-phase initialization
 
+Library
+-------
+
 - bpo-1635741: Port :mod:`winapi` to multiphase initialization
+
+Core and Builtins
+-----------------
 
 - bpo-41215: Use non-NULL default values in the PEG parser keyword list to
   overcome a bug that was preventing Python from being properly compiled
@@ -27960,9 +29005,15 @@ Core and Builtins
   with CO_COROUTINE. Now only list comprehension making use of async/await
   will tagged as so.
 
+Library
+-------
+
 - bpo-1635741: Port :mod:`faulthandler` to multiphase initialization.
 
 - bpo-1635741: Port :mod:`sha256` to multiphase initialization
+
+Core and Builtins
+-----------------
 
 - bpo-41175: Guard against a NULL pointer dereference within bytearrayobject
   triggered by the ``bytearray() + bytearray()`` operation.
@@ -28005,7 +29056,13 @@ Core and Builtins
 - bpo-40939: Remove the remaining files from the old parser and the
   :mod:`symbol` module.
 
+Library
+-------
+
 - bpo-40077: Convert :mod:`!_bz2` to use :c:func:`PyType_FromSpec`.
+
+Core and Builtins
+-----------------
 
 - bpo-41006: The ``encodings.latin_1`` module is no longer imported at
   startup. Now it is only imported when it is the filesystem encoding or the
@@ -28028,8 +29085,14 @@ Core and Builtins
 
 - bpo-40957: Fix refleak in _Py_fopen_obj() when PySys_Audit() fails
 
+Library
+-------
+
 - bpo-40950: Add a state to the :mod:`!nis` module (:pep:`3121`) and apply
   the multiphase initialization. Patch by Donghee Na.
+
+Core and Builtins
+-----------------
 
 - bpo-40947: The Python :ref:`Path Configuration <init-path-config>` now
   takes :c:member:`PyConfig.platlibdir` in account.
@@ -28135,9 +29198,15 @@ Core and Builtins
 - bpo-4022: Improve performance of generators by not raising internal
   StopIteration.
 
+Library
+-------
+
 - bpo-1635741: Port :mod:`mmap` to multiphase initialization.
 
 - bpo-1635741: Port :mod:`!_lzma` to multiphase initialization.
+
+Core and Builtins
+-----------------
 
 - bpo-37999: Builtin and extension functions that take integer arguments no
   longer accept :class:`~decimal.Decimal`\ s, :class:`~fractions.Fraction`\
@@ -28148,10 +29217,16 @@ Core and Builtins
 - bpo-29882: Add :meth:`int.bit_count`, counting the number of ones in the
   binary representation of an integer. Patch by Niklas Fiekas.
 
+Library
+-------
+
 - bpo-36982: Use ncurses extended color functions when available to support
   terminals with 256 colors, and add the new function
   :func:`curses.has_extended_color_support` to indicate whether extended
   color support is provided by the underlying ncurses library.
+
+Core and Builtins
+-----------------
 
 - bpo-19569: Add the private macros ``_Py_COMP_DIAG_PUSH``,
   ``_Py_COMP_DIAG_IGNORE_DEPR_DECLS``, and ``_Py_COMP_DIAG_POP``.
@@ -36899,7 +37974,7 @@ Library
 - bpo-11594: Ensure line-endings are respected when using lib2to3.
 
 - bpo-33254: Have :func:`importlib.resources.contents` and
-  :meth:`importlib.abc.ResourceReader.contents` return an :term:`iterable`
+  :meth:`!importlib.abc.ResourceReader.contents` return an :term:`iterable`
   instead of an :term:`iterator`.
 
 - bpo-33265: ``contextlib.ExitStack`` and ``contextlib.AsyncExitStack`` now
@@ -38554,7 +39629,7 @@ Library
 - bpo-11594: Ensure line-endings are respected when using lib2to3.
 
 - bpo-33254: Have :func:`importlib.resources.contents` and
-  :meth:`importlib.abc.ResourceReader.contents` return an :term:`iterable`
+  :meth:`!importlib.abc.ResourceReader.contents` return an :term:`iterable`
   instead of an :term:`iterator`.
 
 - bpo-33256: Fix display of ``<module>`` call in the html produced by
@@ -39346,7 +40421,7 @@ Library
 - bpo-32373: Add socket.getblocking() method.
 
 - bpo-32248: Add :mod:`importlib.resources` and
-  :class:`importlib.abc.ResourceReader` as the unified API for reading
+  :class:`!importlib.abc.ResourceReader` as the unified API for reading
   resources contained within packages.  Loaders wishing to support resource
   reading must implement the :meth:`get_resource_reader` method.  File-based
   and zipimport-based loaders both implement these APIs.
@@ -39605,9 +40680,9 @@ Library
   applied to socket's type.  This change only affects OSes that have
   SOCK_NONBLOCK and/or SOCK_CLOEXEC.
 
-- bpo-32248: Add :class:`importlib.abc.ResourceReader` as an ABC for loaders
-  to provide a unified API for reading resources contained within packages.
-  Also add :mod:`importlib.resources` as the port of
+- bpo-32248: Add :class:`!importlib.abc.ResourceReader` as an ABC for
+  loaders to provide a unified API for reading resources contained within
+  packages.  Also add :mod:`importlib.resources` as the port of
   ``importlib_resources``.
 
 - bpo-32311: Implement asyncio.create_task(coro) shortcut
