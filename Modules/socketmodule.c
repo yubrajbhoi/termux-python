@@ -150,7 +150,7 @@ listen([n]) -- start listening for incoming connections\n\
 recv(buflen[, flags]) -- receive data\n\
 recv_into(buffer[, nbytes[, flags]]) -- receive data (into a buffer)\n\
 recvfrom(buflen[, flags]) -- receive data and sender\'s address\n\
-recvfrom_into(buffer[, nbytes, [, flags])\n\
+recvfrom_into(buffer[, nbytes, [, flags]])\n\
   -- receive data and sender\'s address (into a buffer)\n\
 sendall(data[, flags]) -- send all data\n\
 send(data[, flags]) -- send data, may not send all of it\n\
@@ -714,12 +714,6 @@ select_error(void)
 #  define SET_SOCK_ERROR(err) do { errno = err; } while (0)
 #  define SOCK_TIMEOUT_ERR EWOULDBLOCK
 #  define SOCK_INPROGRESS_ERR EINPROGRESS
-#endif
-
-#ifdef _MSC_VER
-#  define SUPPRESS_DEPRECATED_CALL __pragma(warning(suppress: 4996))
-#else
-#  define SUPPRESS_DEPRECATED_CALL
 #endif
 
 /* Convenience function to raise an error according to errno
@@ -3372,7 +3366,7 @@ sock_setsockopt(PyObject *self, PyObject *args)
                          &level, &optname, &flag)) {
 #ifdef MS_WINDOWS
         if (optname == SIO_TCP_SET_ACK_FREQUENCY) {
-            int dummy;
+            DWORD dummy;
             res = WSAIoctl(get_sock_fd(s), SIO_TCP_SET_ACK_FREQUENCY, &flag,
                            sizeof(flag), NULL, 0, &dummy, NULL, NULL);
             if (res >= 0) {
@@ -4795,6 +4789,7 @@ sock_sendto(PyObject *self, PyObject *args)
     }
 
     if (PySys_Audit("socket.sendto", "OO", s, addro) < 0) {
+        PyBuffer_Release(&pbuf);
         return NULL;
     }
 
@@ -4952,11 +4947,13 @@ sock_sendmsg(PyObject *self, PyObject *args)
     if (cmsg_arg == NULL)
         ncmsgs = 0;
     else {
-        if ((cmsg_fast = PySequence_Fast(cmsg_arg,
-                                         "sendmsg() argument 2 must be an "
-                                         "iterable")) == NULL)
+        cmsg_fast = PySequence_Tuple(cmsg_arg);
+        if (cmsg_fast == NULL) {
+            PyErr_SetString(PyExc_TypeError,
+                "sendmsg() argument 2 must be an iterable");
             goto finally;
-        ncmsgs = PySequence_Fast_GET_SIZE(cmsg_fast);
+        }
+        ncmsgs = PyTuple_GET_SIZE(cmsg_fast);
     }
 
 #ifndef CMSG_SPACE
@@ -4976,8 +4973,9 @@ sock_sendmsg(PyObject *self, PyObject *args)
     controllen = controllen_last = 0;
     while (ncmsgbufs < ncmsgs) {
         size_t bufsize, space;
+        PyObject *item = PyTuple_GET_ITEM(cmsg_fast, ncmsgbufs);
 
-        if (!PyArg_Parse(PySequence_Fast_GET_ITEM(cmsg_fast, ncmsgbufs),
+        if (!PyArg_Parse(item,
                          "(iiy*):[sendmsg() ancillary data items]",
                          &cmsgs[ncmsgbufs].level,
                          &cmsgs[ncmsgbufs].type,
@@ -6201,8 +6199,10 @@ socket_gethostbyname_ex(PyObject *self, PyObject *args)
 #ifdef USE_GETHOSTBYNAME_LOCK
     PyThread_acquire_lock(netdb_lock, 1);
 #endif
-    SUPPRESS_DEPRECATED_CALL
+    _Py_COMP_DIAG_PUSH
+    _Py_COMP_DIAG_IGNORE_DEPR_DECLS
     h = gethostbyname(name);
+    _Py_COMP_DIAG_POP
 #endif /* HAVE_GETHOSTBYNAME_R */
     Py_END_ALLOW_THREADS
     /* Some C libraries would require addr.__ss_family instead of
@@ -6306,8 +6306,10 @@ socket_gethostbyaddr(PyObject *self, PyObject *args)
 #ifdef USE_GETHOSTBYNAME_LOCK
     PyThread_acquire_lock(netdb_lock, 1);
 #endif
-    SUPPRESS_DEPRECATED_CALL
+    _Py_COMP_DIAG_PUSH
+    _Py_COMP_DIAG_IGNORE_DEPR_DECLS
     h = gethostbyaddr(ap, al, af);
+    _Py_COMP_DIAG_POP
 #endif /* HAVE_GETHOSTBYNAME_R */
     Py_END_ALLOW_THREADS
     ret = gethost_common(state, h, SAS2SA(&addr), sizeof(addr), af);
@@ -6410,74 +6412,17 @@ otherwise any protocol will match.");
    This only returns the protocol number, since the other info is
    already known or not useful (like the list of aliases). */
 
-#ifdef __ANDROID__
-struct protocol_name_and_number {
-    char* name;
-    int number;
-};
-#endif
-
 /*ARGSUSED*/
 static PyObject *
 socket_getprotobyname(PyObject *self, PyObject *args)
 {
-#ifdef __ANDROID__
-    /* http://git.musl-libc.org/cgit/musl/tree/src/network/proto.c */
-    static const struct protocol_name_and_number protocols[] = {
-       {"ip", 0},
-       {"icmp", 1},
-       {"igmp", 2},
-       {"ggp", 3},
-       {"ipencap", 4},
-       {"st", 5},
-       {"tcp", 6},
-       {"egp", 8},
-       {"pup", 12},
-       {"udp", 17},
-       {"hmp", 20},
-       {"xns-idp", 22},
-       {"iso-tp4", 29},
-       {"xtp", 36},
-       {"ddp", 37},
-       {"idpr-cmtp", 38},
-       {"ipv6", 41},
-       {"ipv6-route", 43},
-       {"ipv6-frag", 44},
-       {"idrp", 45},
-       {"rsvp", 46},
-       {"gre", 47},
-       {"esp", 50},
-       {"ah", 51},
-       {"skip", 57},
-       {"ipv6-icmp", 58},
-       {"ipv6-nonxt", 59},
-       {"ipv6-opts", 60},
-       {"rspf", 73},
-       {"vmtp", 81},
-       {"ospf", 89},
-       {"ipip", 94},
-       {"encap", 98},
-       {"pim", 103},
-       {"raw", 255}
-    };
-    int i;
-#endif
     const char *name;
     struct protoent *sp;
     if (!PyArg_ParseTuple(args, "s:getprotobyname", &name))
         return NULL;
-#ifdef __ANDROID__
-    for (i = 0; i < sizeof(protocols) / sizeof(protocols[0]); i++) {
-        if (strcmp(protocols[i].name, name) == 0) {
-            return PyLong_FromLong((long) protocols[i].number);
-        }
-    }
-    sp = NULL;
-#else
     Py_BEGIN_ALLOW_THREADS
     sp = getprotobyname(name);
     Py_END_ALLOW_THREADS
-#endif
     if (sp == NULL) {
         PyErr_SetString(PyExc_OSError, "protocol not found");
         return NULL;
@@ -6781,8 +6726,10 @@ _socket_inet_aton_impl(PyObject *module, const char *ip_addr)
         packed_addr = INADDR_BROADCAST;
     } else {
 
-        SUPPRESS_DEPRECATED_CALL
+        _Py_COMP_DIAG_PUSH
+        _Py_COMP_DIAG_IGNORE_DEPR_DECLS
         packed_addr = inet_addr(ip_addr);
+        _Py_COMP_DIAG_POP
 
         if (packed_addr == INADDR_NONE) {               /* invalid address */
             PyErr_SetString(PyExc_OSError,
@@ -6825,8 +6772,10 @@ _socket_inet_ntoa_impl(PyObject *module, Py_buffer *packed_ip)
     memcpy(&packed_addr, packed_ip->buf, packed_ip->len);
     PyBuffer_Release(packed_ip);
 
-    SUPPRESS_DEPRECATED_CALL
+    _Py_COMP_DIAG_PUSH
+    _Py_COMP_DIAG_IGNORE_DEPR_DECLS
     return PyUnicode_FromString(inet_ntoa(packed_addr));
+    _Py_COMP_DIAG_POP
 }
 #endif // HAVE_INET_NTOA
 
@@ -7019,7 +6968,7 @@ socket_getaddrinfo(PyObject *self, PyObject *args, PyObject* kwargs)
 
     if (PySys_Audit("socket.getaddrinfo", "OOiii",
                     hobj, pobj, family, socktype, protocol) < 0) {
-        return NULL;
+        goto err;
     }
 
     memset(&hints, 0, sizeof(hints));

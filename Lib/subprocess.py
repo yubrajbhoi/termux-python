@@ -351,15 +351,16 @@ def _args_from_interpreter_flags():
     # -X options
     if dev_mode:
         args.extend(('-X', 'dev'))
-    for opt in ('faulthandler', 'tracemalloc', 'importtime',
-                'frozen_modules', 'showrefcount', 'utf8', 'gil'):
-        if opt in xoptions:
-            value = xoptions[opt]
-            if value is True:
-                arg = opt
-            else:
-                arg = '%s=%s' % (opt, value)
-            args.extend(('-X', arg))
+    for opt in sorted(xoptions):
+        if opt == 'dev':
+            # handled above via sys.flags.dev_mode
+            continue
+        value = xoptions[opt]
+        if value is True:
+            arg = opt
+        else:
+            arg = '%s=%s' % (opt, value)
+        args.extend(('-X', arg))
 
     return args
 
@@ -1844,7 +1845,9 @@ class Popen:
                 args = list(args)
 
             if shell:
-                unix_shell = ('/data/data/com.termux/files/usr/bin/sh')
+                # On Android the default shell is at '/system/bin/sh'.
+                unix_shell = ('/system/bin/sh' if
+                          hasattr(sys, 'getandroidapilevel') else '/bin/sh')
                 args = [unix_shell, "-c"] + args
                 if executable:
                     args[0] = executable
